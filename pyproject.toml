@@ -1,0 +1,13 @@
+[project]
+name = "paperflow"
+version = "1.0.0"
+requires-python = ">=3.11"
+
+[tool.pyright]
+extraPaths = ["Backend"]
+executionEnvironments = [
+  { root = "Backend", extraPaths = ["Backend"] }
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["Backend"]
