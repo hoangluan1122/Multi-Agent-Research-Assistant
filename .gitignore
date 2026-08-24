@@ -24,3 +24,15 @@ __pycache__/
 .eggs/
 venv/
 .venv/
+
+# Local databases & uploads
+*.db
+*.sqlite
+*.sqlite3
+paperflow.db
+Backend/paperflow.db
+uploads/
+Backend/uploads/
+exports/
+Backend/exports/
+
