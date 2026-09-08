@@ -1,6 +1,6 @@
-// @trace: REQ-STICKMAN-001, REQ-STICKMAN-002, REQ-STICKMAN-003
+// @trace: REQ-DINO-001, REQ-DINO-002, REQ-DINO-003
 import React, { useEffect, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, FileText } from 'lucide-react';
 import './officeTheme.css';
 
 export interface DeskPosition {
@@ -38,8 +38,9 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
   const [currentPos, setCurrentPos] = useState(PANTRY_POS);
   const [isWalking, setIsWalking] = useState(false);
   const [facingRight, setFacingRight] = useState(true);
-  const [speechText, setSpeechText] = useState('Sẵn sàng điều phối tài liệu...');
+  const [speechText, setSpeechText] = useState('🦖 Dino sẵn sàng điều phối tài liệu...');
   const [isHandingOver, setIsHandingOver] = useState(false);
+  const [dinoSkin, setDinoSkin] = useState<'doux' | 'mort' | 'tard' | 'vita'>('doux');
 
   // Determine destination based on active agent or custom demo index
   useEffect(() => {
@@ -65,18 +66,22 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
       setIsWalking(true);
       setIsHandingOver(false);
 
+      // Cycle dino skin depending on step
+      const skins: Array<'doux' | 'mort' | 'tard' | 'vita'> = ['doux', 'vita', 'tard', 'mort', 'doux', 'vita'];
+      setDinoSkin(skins[targetIndex] || 'doux');
+
       // Dynamic task message
       const taskMessages = [
-        '🔍 Giao yêu cầu tìm kiếm bài báo tới Search Agent',
-        '📖 Bàn giao PDF và bóc tách dữ liệu sang Reading Agent',
-        '📊 Chuyển dữ liệu bóc tách sang Summarization Agent',
-        '✍️ Mang ma trận so sánh sang Writing Agent soạn thảo',
-        '⚖️ Chuyển bản thảo sang Review Agent thẩm định',
-        '📑 Chuyển báo cáo sang Citation Agent đóng dấu chuẩn',
+        '🔍 Dino chuyển hồ sơ đề tài tới Search Agent',
+        '📖 Dino bàn giao bài báo PDF sang Reading Agent',
+        '📊 Dino mang trích xuất sang Summarization Agent',
+        '✍️ Dino chuyển ma trận đối sánh sang Writing Agent',
+        '⚖️ Dino nộp bản thảo sang Review Agent thẩm định',
+        '📑 Dino chuyển bài hoàn thiện sang Citation Agent chứng thực',
       ];
-      setSpeechText(taskMessages[targetIndex] || 'Đang giao tài liệu...');
+      setSpeechText(taskMessages[targetIndex] || '🦖 Dino đang vận chuyển tài liệu...');
 
-      // Move stickman
+      // Move courier
       setCurrentPos({ xPercent: target.xPercent, yPercent: target.yPercent });
 
       // After walking duration (1.2s), trigger handover animation
@@ -89,7 +94,7 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
     } else if (targetIndex === 6) {
       // Completed all
       setCurrentPos({ xPercent: 50, yPercent: 6 });
-      setSpeechText('🏆 Hoàn tất 100% chu trình nghiên cứu khoa học!');
+      setSpeechText('🏆 Dino hoàn thành 100% chu trình điều phối!');
       setIsWalking(true);
       setTimeout(() => {
         setIsWalking(false);
@@ -98,7 +103,7 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
     } else {
       // Idle at pantry
       setCurrentPos(PANTRY_POS);
-      setSpeechText('☕ Đang ở quầy Pantry, chờ lệnh mới...');
+      setSpeechText('☕ Dino đang nghỉ ngơi ở quầy Pantry...');
       setIsWalking(false);
       setIsHandingOver(false);
     }
@@ -110,79 +115,50 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
       style={{
         left: `${currentPos.xPercent}%`,
         top: `${currentPos.yPercent}%`,
-        transform: `translate(-50%, -100%) scaleX(${facingRight ? 1 : -1})`,
+        transform: 'translate(-50%, -100%)',
       }}
     >
-      {/* 1. Speech Dialog Bubble (Rendered with safe positioning) */}
+      {/* 1. Speech Dialog Bubble */}
       <div
-        className="absolute -top-10 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap px-3 py-1 rounded-xl bg-slate-900 border border-amber-400/70 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 text-[10px] text-amber-200 font-semibold"
-        style={{ transform: `translateX(-50%) scaleX(${facingRight ? 1 : -1})` }}
+        className="absolute -top-10 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap px-3 py-1 rounded-xl bg-slate-900/95 border border-amber-400/80 shadow-lg shadow-amber-500/25 flex items-center gap-1.5 text-[11px] text-amber-200 font-semibold backdrop-blur-sm"
       >
-        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-        <span className="truncate max-w-[220px]">{speechText}</span>
-        {isHandingOver && <Sparkles className="w-3 h-3 text-amber-400 animate-spin" />}
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+        <span className="truncate max-w-[240px]">{speechText}</span>
+        {isHandingOver && <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-spin" />}
       </div>
 
-      {/* 2. 2D Stickman Character Model (Articulated SVG) */}
-      <div className={`relative ${isWalking ? 'anim-stickman-bob' : ''}`}>
-        <svg
-          width="54"
-          height="72"
-          viewBox="0 0 54 72"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="drop-shadow-[0_4px_10px_rgba(0,0,0,0.6)]"
+      {/* 2. 2D Dino Courier Model from Pixel Art Assets */}
+      <div className={`relative flex flex-col items-center ${isHandingOver ? 'anim-celebrate' : isWalking ? 'anim-stickman-bob' : ''}`}>
+        
+        {/* Glowing Dossier / Document Folder Carried by Dino */}
+        <div
+          className={`absolute -top-3 ${facingRight ? '-right-1' : '-left-1'} z-40 bg-gradient-to-tr from-amber-500 to-yellow-300 p-1 rounded-md shadow-md shadow-amber-500/50 border border-yellow-100 text-slate-950 flex items-center gap-0.5 ${
+            isHandingOver ? 'anim-handover-glow scale-110' : 'animate-bounce'
+          }`}
         >
-          {/* Shadow on Floor */}
-          <ellipse cx="27" cy="68" rx="14" ry="4" fill="rgba(0,0,0,0.4)" />
+          <FileText className="w-3 h-3 text-slate-900 stroke-[2.5]" />
+          <span className="text-[8px] font-black tracking-tighter">DOCS</span>
+        </div>
 
-          {/* Stickman Head */}
-          <circle cx="27" cy="14" r="8" fill="#f8fafc" stroke="#0f172a" strokeWidth="2.5" />
+        {/* Dino Sprite (Pixel Art GIF with crisp rendering) */}
+        <div
+          className="relative transition-transform duration-300"
+          style={{
+            transform: `scaleX(${facingRight ? 1 : -1})`,
+          }}
+        >
+          <img
+            src={`/dino/gifs/DinoSprites_${dinoSkin}.gif`}
+            alt="Dino Courier"
+            className="w-14 h-14 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.6)]"
+            style={{
+              imageRendering: 'pixelated',
+            }}
+          />
+        </div>
 
-          {/* Cute VR Headset / Visor */}
-          <rect x="23" y="11" width="10" height="4" rx="2" fill="#6366f1" />
-          <circle cx="30" cy="13" r="1" fill="#38bdf8" />
-
-          {/* Stickman Torso (Spine) */}
-          <line x1="27" y1="22" x2="27" y2="44" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-
-          {/* Left Leg */}
-          <g className={isWalking ? 'anim-stickman-leg-1' : ''}>
-            <line x1="27" y1="44" x2="20" y2="56" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="20" y1="56" x2="16" y2="67" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="16" y1="67" x2="22" y2="67" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
-          </g>
-
-          {/* Right Leg */}
-          <g className={isWalking ? 'anim-stickman-leg-2' : ''}>
-            <line x1="27" y1="44" x2="34" y2="56" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="34" y1="56" x2="38" y2="67" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="38" y1="67" x2="44" y2="67" stroke="#38bdf8" strokeWidth="3.5" strokeLinecap="round" />
-          </g>
-
-          {/* Left Arm (Holding Document Folder) */}
-          <g className={isWalking ? 'anim-stickman-arm-1' : ''}>
-            <line x1="27" y1="26" x2="18" y2="34" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="18" y1="34" x2="32" y2="34" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-          </g>
-
-          {/* Right Arm (Forward handover posture) */}
-          <g className={isWalking ? 'anim-stickman-arm-2' : ''}>
-            <line x1="27" y1="26" x2="36" y2="32" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-            <line x1="36" y1="32" x2="42" y2="28" stroke="#f8fafc" strokeWidth="3" strokeLinecap="round" />
-          </g>
-
-          {/* Glowing Document Dossier / Folder Handed Over */}
-          <g transform="translate(26, 22)" className="anim-handover-glow">
-            {/* Folder Body */}
-            <rect x="0" y="0" width="16" height="13" rx="2" fill="#fbbf24" stroke="#d97706" strokeWidth="1" />
-            <path d="M0 3 L6 3 L8 5 L16 5 L16 13 L0 13 Z" fill="#f59e0b" />
-            {/* White Document Paper sticking out */}
-            <rect x="2" y="-3" width="10" height="6" rx="1" fill="#ffffff" />
-            <line x1="4" y1="-1" x2="10" y2="-1" stroke="#64748b" strokeWidth="0.8" />
-            <line x1="4" y1="1" x2="8" y2="1" stroke="#64748b" strokeWidth="0.8" />
-          </g>
-        </svg>
+        {/* Dynamic Shadow on Floor */}
+        <div className="w-10 h-2 bg-black/40 rounded-full blur-[2px] -mt-2" />
       </div>
     </div>
   );
