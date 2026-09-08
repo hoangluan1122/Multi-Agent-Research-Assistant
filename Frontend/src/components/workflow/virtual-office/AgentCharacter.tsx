@@ -1,6 +1,6 @@
 // @trace: REQ-VO-002, REQ-VO-003
 import React from 'react';
-import { Sparkles, AlertCircle, CheckCircle2, Search, BookOpen, FileSpreadsheet, PenTool, Award, Quote } from 'lucide-react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import './officeTheme.css';
 
 export type CharacterStatus = 'running' | 'completed' | 'failed' | 'idle';
@@ -16,62 +16,271 @@ export const AgentCharacter: React.FC<AgentCharacterProps> = ({
   status,
   currentTask,
 }) => {
-  // Mascot scarf / accessory color per agent role
-  const getTheme = () => {
+  // Render distinct 2D model per Agent
+  const renderUniqueCharacter = () => {
     switch (agentName) {
+      // =========================================================================
+      // MODEL 1: SEARCH AGENT (Nhân vật Thám Hiểm với Mũ Safari & Kính Lúp)
+      // =========================================================================
       case 'SearchAgent':
-        return {
-          scarf: '#38bdf8', // Sky blue
-          badgeIcon: <Search className="w-2.5 h-2.5 text-sky-300" />,
-          title: 'Searcher',
-          roleColor: 'bg-sky-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#0284c7" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Explorer Outfit (Safari Vest) */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#0369a1" stroke="#38bdf8" strokeWidth="1.5" />
+            <rect x="29" y="32" width="6" height="7" rx="1.5" fill="#0284c7" stroke="#bae6fd" strokeWidth="0.8" />
+            <rect x="41" y="32" width="6" height="7" rx="1.5" fill="#0284c7" stroke="#bae6fd" strokeWidth="0.8" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* Safari Explorer Pith Hat */}
+            <ellipse cx="38" cy="12" rx="16" ry="4" fill="#0284c7" stroke="#38bdf8" strokeWidth="1.5" />
+            <path d="M26 12 C26 4 50 4 50 12 Z" fill="#0369a1" stroke="#38bdf8" strokeWidth="1.5" />
+            <rect x="36" y="6" width="4" height="4" rx="1" fill="#fbbf24" />
+
+            {/* Eyes */}
+            {status === 'idle' ? (
+              <path d="M32 23 Q35 25 38 23 M40 23 Q43 25 46 23" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+            ) : status === 'running' ? (
+              <>
+                <circle cx="34" cy="22" r="2.5" fill="#0284c7" />
+                <circle cx="42" cy="22" r="2.5" fill="#0284c7" />
+                <circle cx="35" cy="21" r="0.8" fill="#ffffff" />
+                <circle cx="43" cy="21" r="0.8" fill="#ffffff" />
+              </>
+            ) : (
+              <path d="M32 24 L35 21 L38 24 M40 24 L43 21 L46 24" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
+            )}
+
+            {/* Scout Magnifying Glass in Hand */}
+            <g transform="translate(48, 20)" className={status === 'running' ? 'anim-typing' : ''}>
+              <circle cx="8" cy="8" r="7" fill="#38bdf8" fillOpacity="0.3" stroke="#38bdf8" strokeWidth="2" />
+              <line x1="13" y1="13" x2="20" y2="20" stroke="#f59e0b" strokeWidth="3" strokeLinecap="round" />
+              <circle cx="8" cy="8" r="3" fill="#ffffff" fillOpacity="0.6" />
+            </g>
+          </svg>
+        );
+
+      // =========================================================================
+      // MODEL 2: READING AGENT (Nhân vật Giáo Sư Đeo Kính & Mũ Cử Nhân Tiến Sĩ)
+      // =========================================================================
       case 'ReadingAgent':
-        return {
-          scarf: '#34d399', // Emerald green
-          badgeIcon: <BookOpen className="w-2.5 h-2.5 text-emerald-300" />,
-          title: 'Reader',
-          roleColor: 'bg-emerald-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#059669" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Academic Scholar Robe */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#064e3b" stroke="#34d399" strokeWidth="1.5" />
+            <path d="M34 26 L38 34 L42 26" stroke="#fbbf24" strokeWidth="2" fill="none" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* Mortarboard Graduate Cap */}
+            <path d="M38 4 L56 12 L38 20 L20 12 Z" fill="#0f172a" stroke="#34d399" strokeWidth="1.5" />
+            <rect x="30" y="16" width="16" height="6" fill="#0f172a" stroke="#059669" strokeWidth="1" />
+            <circle cx="38" cy="12" r="2" fill="#fbbf24" />
+            <path d="M38 12 Q48 14 50 24" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="50" cy="25" r="2" fill="#fbbf24" />
+
+            {/* Scholar Big Round Glasses */}
+            <circle cx="33" cy="22" r="4.5" stroke="#059669" strokeWidth="1.5" fill="none" />
+            <circle cx="43" cy="22" r="4.5" stroke="#059669" strokeWidth="1.5" fill="none" />
+            <line x1="37.5" y1="22" x2="38.5" y2="22" stroke="#059669" strokeWidth="1.5" />
+
+            {/* Eyes behind glasses */}
+            {status === 'idle' ? (
+              <line x1="31" y1="22" x2="35" y2="22" stroke="#64748b" strokeWidth="1.5" />
+            ) : (
+              <>
+                <circle cx="33" cy="22" r="2" fill="#059669" />
+                <circle cx="43" cy="22" r="2" fill="#059669" />
+              </>
+            )}
+
+            {/* Open Book / PDF Dossier at Side */}
+            <g transform="translate(10, 30)" className={status === 'running' ? 'anim-typing' : ''}>
+              <rect x="0" y="0" width="12" height="15" rx="2" fill="#34d399" stroke="#059669" strokeWidth="1" />
+              <line x1="3" y1="4" x2="9" y2="4" stroke="#ffffff" strokeWidth="1" />
+              <line x1="3" y1="7" x2="9" y2="7" stroke="#ffffff" strokeWidth="1" />
+              <line x1="3" y1="10" x2="7" y2="10" stroke="#ffffff" strokeWidth="1" />
+            </g>
+          </svg>
+        );
+
+      // =========================================================================
+      // MODEL 3: SUMMARIZATION AGENT (Chuyên Gia Dữ Liệu Đeo Tai Nghe & Hologram)
+      // =========================================================================
       case 'SummarizationAgent':
-        return {
-          scarf: '#fbbf24', // Amber gold
-          badgeIcon: <FileSpreadsheet className="w-2.5 h-2.5 text-amber-300" />,
-          title: 'Summarizer',
-          roleColor: 'bg-amber-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#d97706" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Tech Hoodie Outfit */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#78350f" stroke="#fbbf24" strokeWidth="1.5" />
+            <circle cx="38" cy="36" r="3" fill="#fbbf24" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* DJ / Data Tech Headset */}
+            <path d="M22 22 C22 10 54 10 54 22" stroke="#f59e0b" strokeWidth="3" fill="none" />
+            <rect x="20" y="18" width="5" height="9" rx="2" fill="#d97706" />
+            <rect x="51" y="18" width="5" height="9" rx="2" fill="#d97706" />
+            <path d="M25 24 Q32 29 35 27" stroke="#f59e0b" strokeWidth="1.5" fill="none" />
+            <circle cx="36" cy="27" r="1.5" fill="#ef4444" />
+
+            {/* Futuristic Matrix Hologram Visor */}
+            <rect x="29" y="19" width="18" height="6" rx="2" fill="#fbbf24" fillOpacity="0.85" />
+            <line x1="31" y1="22" x2="45" y2="22" stroke="#78350f" strokeWidth="1" strokeDasharray="2 1" />
+
+            {/* Floating Hologram Chart Bars */}
+            <g transform="translate(52, 10)">
+              <rect x="0" y="8" width="3" height="8" rx="1" fill="#fbbf24" className="anim-typing" />
+              <rect x="5" y="4" width="3" height="12" rx="1" fill="#f59e0b" className="anim-typing" style={{ animationDelay: '0.15s' }} />
+              <rect x="10" y="0" width="3" height="16" rx="1" fill="#d97706" className="anim-typing" style={{ animationDelay: '0.3s' }} />
+            </g>
+          </svg>
+        );
+
+      // =========================================================================
+      // MODEL 4: WRITING AGENT (Nhà Văn Đội Mũ Beret & Cầm Bút Lông Vũ)
+      // =========================================================================
       case 'WritingAgent':
-        return {
-          scarf: '#818cf8', // Indigo
-          badgeIcon: <PenTool className="w-2.5 h-2.5 text-indigo-300" />,
-          title: 'Writer',
-          roleColor: 'bg-indigo-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#6366f1" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Novelist Outfit (Turtleneck & Scarf) */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#312e81" stroke="#818cf8" strokeWidth="1.5" />
+            <path d="M30 26 L46 26 L42 34 L34 34 Z" fill="#6366f1" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* Artist French Beret Hat */}
+            <ellipse cx="40" cy="11" rx="15" ry="6" fill="#4338ca" stroke="#818cf8" strokeWidth="1.5" />
+            <path d="M38 5 L38 3" stroke="#a5b4fc" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Focused Creative Eyes */}
+            {status === 'idle' ? (
+              <path d="M32 23 Q35 25 38 23 M40 23 Q43 25 46 23" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" />
+            ) : (
+              <>
+                <circle cx="34" cy="22" r="2.5" fill="#6366f1" />
+                <circle cx="42" cy="22" r="2.5" fill="#6366f1" />
+                <circle cx="35" cy="21" r="0.8" fill="#ffffff" />
+                <circle cx="43" cy="21" r="0.8" fill="#ffffff" />
+              </>
+            )}
+
+            {/* Magic Feather Quill Pen in Hand */}
+            <g transform="translate(50, 16)" className={status === 'running' ? 'anim-typing' : ''}>
+              <path d="M4 18 L16 2 C14 8 18 10 14 16 L4 18 Z" fill="#818cf8" stroke="#c7d2fe" strokeWidth="1" />
+              <line x1="4" y1="18" x2="0" y2="24" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="0" cy="24" r="1.5" fill="#6366f1" />
+            </g>
+          </svg>
+        );
+
+      // =========================================================================
+      // MODEL 5: REVIEW AGENT (Quan Tòa / Trọng Tài Phản Biện Cầm Búa Thẩm Định)
+      // =========================================================================
       case 'ReviewAgent':
-        return {
-          scarf: '#f43f5e', // Rose red
-          badgeIcon: <Award className="w-2.5 h-2.5 text-rose-300" />,
-          title: 'Reviewer',
-          roleColor: 'bg-rose-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#e11d48" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Suit & Red Power Tie */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#111827" stroke="#f43f5e" strokeWidth="1.5" />
+            <polygon points="34,26 42,26 38,32" fill="#ffffff" />
+            <polygon points="37,30 39,30 40,39 38,42 36,39" fill="#e11d48" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* Inspector Badge / Judge Wig Crest */}
+            <path d="M38 4 L44 9 L42 16 L34 16 L32 9 Z" fill="#fbbf24" stroke="#d97706" strokeWidth="1" />
+            <circle cx="38" cy="10" r="1.5" fill="#e11d48" />
+
+            {/* Sharp Inspector Glasses */}
+            <rect x="29" y="19" width="8" height="5" rx="1.5" stroke="#e11d48" strokeWidth="1.5" fill="none" />
+            <rect x="39" y="19" width="8" height="5" rx="1.5" stroke="#e11d48" strokeWidth="1.5" fill="none" />
+            <line x1="37" y1="21" x2="39" y2="21" stroke="#e11d48" strokeWidth="1.5" />
+
+            {/* Eyes */}
+            {status === 'idle' ? (
+              <line x1="31" y1="21" x2="35" y2="21" stroke="#64748b" strokeWidth="1.5" />
+            ) : (
+              <>
+                <circle cx="33" cy="21" r="2" fill="#e11d48" />
+                <circle cx="43" cy="21" r="2" fill="#e11d48" />
+              </>
+            )}
+
+            {/* Judge Gavel in Hand */}
+            <g transform="translate(48, 22)" className={status === 'running' ? 'anim-typing' : ''}>
+              <rect x="8" y="2" width="10" height="6" rx="1.5" fill="#78350f" stroke="#fbbf24" strokeWidth="1" />
+              <line x1="13" y1="8" x2="13" y2="20" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" />
+            </g>
+          </svg>
+        );
+
+      // =========================================================================
+      // MODEL 6: CITATION AGENT (Thủ Thư Hoàng Gia với Con Dấu Chuẩn Hóa IEEE/APA)
+      // =========================================================================
       case 'CitationAgent':
-        return {
-          scarf: '#a855f7', // Purple
-          badgeIcon: <Quote className="w-2.5 h-2.5 text-purple-300" />,
-          title: 'Citator',
-          roleColor: 'bg-purple-500',
-        };
+        return (
+          <svg width="76" height="76" viewBox="0 0 76 76" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg">
+            {/* Swivel Chair */}
+            <rect x="22" y="34" width="32" height="28" rx="8" fill="#1e293b" stroke="#9333ea" strokeWidth="1.5" />
+            <circle cx="38" cy="64" r="3" fill="#0f172a" />
+            <path d="M30 67 L46 67 M38 62 L38 67" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Royal Librarian Robe & Gold Trim */}
+            <rect x="25" y="26" width="26" height="26" rx="8" fill="#3b0764" stroke="#c084fc" strokeWidth="1.5" />
+            <line x1="38" y1="26" x2="38" y2="52" stroke="#fbbf24" strokeWidth="2" />
+
+            {/* Head */}
+            <circle cx="38" cy="22" r="13" fill="#f8fafc" stroke="#0f172a" strokeWidth="1.5" />
+
+            {/* Librarian Reading Monocle with Gold Chain */}
+            <circle cx="34" cy="22" r="5" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
+            <path d="M34 27 Q30 34 26 38" stroke="#fbbf24" strokeWidth="1" strokeDasharray="1 1" fill="none" />
+            <circle cx="43" cy="22" r="2.5" fill="#a855f7" />
+            <circle cx="34" cy="22" r="2.5" fill="#a855f7" />
+
+            {/* Official Certification Stamp / Seal in Hand */}
+            <g transform="translate(48, 18)" className={status === 'running' ? 'anim-typing' : ''}>
+              <path d="M12 4 C8 4 6 8 6 12 L18 12 C18 8 16 4 12 4 Z" fill="#9333ea" stroke="#c084fc" strokeWidth="1" />
+              <rect x="4" y="12" width="16" height="4" rx="1" fill="#fbbf24" stroke="#d97706" strokeWidth="1" />
+              <circle cx="12" cy="18" r="4" fill="#ef4444" />
+              <text x="10" y="20" fontSize="5" fill="#ffffff" fontWeight="bold">✓</text>
+            </g>
+          </svg>
+        );
+
       default:
-        return {
-          scarf: '#6366f1',
-          badgeIcon: <Sparkles className="w-2.5 h-2.5 text-indigo-300" />,
-          title: 'Agent',
-          roleColor: 'bg-indigo-500',
-        };
+        return null;
     }
   };
-
-  const theme = getTheme();
 
   return (
     <div className="relative flex flex-col items-center select-none">
@@ -105,83 +314,9 @@ export const AgentCharacter: React.FC<AgentCharacterProps> = ({
         </div>
       )}
 
-      {/* 2. Character SVG Mascot (Cute tech mascot inspired by Marvis Office) */}
+      {/* 2. Render Distinct 2D Character Mascot */}
       <div className={`relative transition-transform duration-300 ${status === 'running' ? 'anim-head-bob' : ''} ${status === 'completed' ? 'anim-celebrate' : ''}`}>
-        <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-md">
-          {/* Swivel Chair Back */}
-          <rect x="20" y="32" width="32" height="28" rx="8" fill="#1e293b" stroke="#334155" strokeWidth="1.5" />
-          <circle cx="36" cy="62" r="3" fill="#0f172a" />
-          <path d="M30 65 L42 65 M36 60 L36 65" stroke="#334155" strokeWidth="2" strokeLinecap="round" />
-
-          {/* Character Body (Dark Fur/Suit) */}
-          <rect x="23" y="24" width="26" height="26" rx="8" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-
-          {/* Character Head */}
-          <circle cx="36" cy="20" r="14" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-
-          {/* Mascot Ears */}
-          <path d="M24 12 L28 18 L22 18 Z" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-          <path d="M48 12 L44 18 L50 18 Z" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-          <path d="M25 14 L27 17 L24 17 Z" fill="#334155" />
-          <path d="M47 14 L45 17 L48 17 Z" fill="#334155" />
-
-          {/* Mascot Eyes depending on status */}
-          {status === 'idle' ? (
-            /* Sleeping / Closed eyes */
-            <>
-              <path d="M29 19 Q32 22 35 19" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-              <path d="M37 19 Q40 22 43 19" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-            </>
-          ) : status === 'running' ? (
-            /* Focused Glowing Eyes */
-            <>
-              <ellipse cx="32" cy="19" rx="2.5" ry="3" fill="#38bdf8" />
-              <ellipse cx="40" cy="19" rx="2.5" ry="3" fill="#38bdf8" />
-              <circle cx="33" cy="18" r="0.8" fill="#ffffff" />
-              <circle cx="41" cy="18" r="0.8" fill="#ffffff" />
-            </>
-          ) : status === 'completed' ? (
-            /* Happy Happy ^ ^ Eyes */
-            <>
-              <path d="M30 20 L32 17 L34 20" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-              <path d="M38 20 L40 17 L42 20" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </>
-          ) : (
-            /* Failed / Sad X Eyes */
-            <>
-              <path d="M30 17 L34 21 M34 17 L30 21" stroke="#f43f5e" strokeWidth="1.5" strokeLinecap="round" />
-              <path d="M38 17 L42 21 M42 17 L38 21" stroke="#f43f5e" strokeWidth="1.5" strokeLinecap="round" />
-            </>
-          )}
-
-          {/* Cute Nose / Snout */}
-          <ellipse cx="36" cy="23" rx="2" ry="1.2" fill="#334155" />
-
-          {/* Mascot Scarf / Bandana */}
-          <path d="M26 27 C30 30 42 30 46 27 L44 32 C38 35 34 35 28 32 Z" fill={theme.scarf} />
-          <circle cx="36" cy="30" r="2" fill="#ffffff" />
-
-          {/* Hands Typing on Keyboard or Holding Coffee */}
-          {status === 'running' ? (
-            /* Typing Hands */
-            <>
-              <circle cx="28" cy="42" r="3" fill="#0f172a" stroke="#334155" strokeWidth="1" className="anim-typing" />
-              <circle cx="44" cy="42" r="3" fill="#0f172a" stroke="#334155" strokeWidth="1" className="anim-typing" style={{ animationDelay: '0.15s' }} />
-            </>
-          ) : status === 'completed' ? (
-            /* Hands up celebrating */
-            <>
-              <circle cx="22" cy="28" r="3" fill="#0f172a" stroke="#34d399" strokeWidth="1" />
-              <circle cx="50" cy="28" r="3" fill="#0f172a" stroke="#34d399" strokeWidth="1" />
-            </>
-          ) : (
-            /* Resting Hands */
-            <>
-              <circle cx="29" cy="44" r="3" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-              <circle cx="43" cy="44" r="3" fill="#0f172a" stroke="#1e293b" strokeWidth="1" />
-            </>
-          )}
-        </svg>
+        {renderUniqueCharacter()}
       </div>
     </div>
   );
