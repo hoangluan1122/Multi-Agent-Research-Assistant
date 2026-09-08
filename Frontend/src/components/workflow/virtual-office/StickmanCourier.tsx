@@ -22,18 +22,18 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
   totalCompleted,
   customTargetIndex,
 }) => {
-  // 6 Desk coordinates corresponding to the 2x3 Grid Layout in VirtualOffice
+  // 6 Desk coordinates placed neatly in the walkway aisle beside each desk
   const DESK_COORDINATES: DeskPosition[] = [
-    { deskIndex: 0, agentName: 'SearchAgent', xPercent: 16, yPercent: 46 },
-    { deskIndex: 1, agentName: 'ReadingAgent', xPercent: 50, yPercent: 46 },
-    { deskIndex: 2, agentName: 'SummarizationAgent', xPercent: 84, yPercent: 46 },
-    { deskIndex: 3, agentName: 'WritingAgent', xPercent: 16, yPercent: 84 },
-    { deskIndex: 4, agentName: 'ReviewAgent', xPercent: 50, yPercent: 84 },
-    { deskIndex: 5, agentName: 'CitationAgent', xPercent: 84, yPercent: 84 },
+    { deskIndex: 0, agentName: 'SearchAgent', xPercent: 28, yPercent: 48 },
+    { deskIndex: 1, agentName: 'ReadingAgent', xPercent: 61, yPercent: 48 },
+    { deskIndex: 2, agentName: 'SummarizationAgent', xPercent: 94, yPercent: 48 },
+    { deskIndex: 3, agentName: 'WritingAgent', xPercent: 28, yPercent: 95 },
+    { deskIndex: 4, agentName: 'ReviewAgent', xPercent: 61, yPercent: 95 },
+    { deskIndex: 5, agentName: 'CitationAgent', xPercent: 94, yPercent: 95 },
   ];
 
-  // Starting idle position: Center Pantry Entrance
-  const PANTRY_POS = { xPercent: 50, yPercent: 14 };
+  // Starting idle position: Pantry Breakroom Area
+  const PANTRY_POS = { xPercent: 50, yPercent: 6 };
 
   const [currentPos, setCurrentPos] = useState(PANTRY_POS);
   const [isWalking, setIsWalking] = useState(false);
@@ -50,7 +50,6 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
     } else if (currentActiveAgent) {
       targetIndex = DESK_COORDINATES.findIndex((d) => d.agentName === currentActiveAgent);
     } else if (totalCompleted === 6) {
-      // Finished all workflow: return to center celebration
       targetIndex = 6; // Center
     }
 
@@ -89,7 +88,7 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
       return () => clearTimeout(walkTimer);
     } else if (targetIndex === 6) {
       // Completed all
-      setCurrentPos({ xPercent: 50, yPercent: 14 });
+      setCurrentPos({ xPercent: 50, yPercent: 6 });
       setSpeechText('🏆 Hoàn tất 100% chu trình nghiên cứu khoa học!');
       setIsWalking(true);
       setTimeout(() => {
@@ -99,7 +98,7 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
     } else {
       // Idle at pantry
       setCurrentPos(PANTRY_POS);
-      setSpeechText('☕ Đang nghỉ ngơi tại quầy Pantry, chờ lệnh mới...');
+      setSpeechText('☕ Đang ở quầy Pantry, chờ lệnh mới...');
       setIsWalking(false);
       setIsHandingOver(false);
     }
@@ -114,14 +113,14 @@ export const StickmanCourier: React.FC<StickmanCourierProps> = ({
         transform: `translate(-50%, -100%) scaleX(${facingRight ? 1 : -1})`,
       }}
     >
-      {/* 1. Speech Dialog Bubble (Unflipped so text is always readable) */}
+      {/* 1. Speech Dialog Bubble (Rendered with safe positioning) */}
       <div
-        className="absolute -top-14 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap px-3 py-1.5 rounded-2xl bg-slate-900/95 border border-amber-400/80 shadow-xl shadow-amber-500/20 flex items-center gap-1.5 text-[11px] text-amber-200 font-semibold"
+        className="absolute -top-10 left-1/2 -translate-x-1/2 z-40 whitespace-nowrap px-3 py-1 rounded-xl bg-slate-900 border border-amber-400/70 shadow-lg shadow-amber-500/20 flex items-center gap-1.5 text-[10px] text-amber-200 font-semibold"
         style={{ transform: `translateX(-50%) scaleX(${facingRight ? 1 : -1})` }}
       >
-        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-        <span className="truncate max-w-[200px]">{speechText}</span>
-        {isHandingOver && <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" />}
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+        <span className="truncate max-w-[220px]">{speechText}</span>
+        {isHandingOver && <Sparkles className="w-3 h-3 text-amber-400 animate-spin" />}
       </div>
 
       {/* 2. 2D Stickman Character Model (Articulated SVG) */}
