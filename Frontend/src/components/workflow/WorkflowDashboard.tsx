@@ -14,10 +14,12 @@ import {
   AlertCircle,
   Layers,
   RefreshCw,
+  Building2,
 } from 'lucide-react';
 import type { Session, WorkflowStatus, AgentRun } from '../../types';
 import { AgentNode } from './AgentNode';
 import { AgentLogModal } from './AgentLogModal';
+import { VirtualOffice } from './virtual-office/VirtualOffice';
 import { useI18n } from '../../i18n/context';
 
 interface WorkflowDashboardProps {
@@ -38,6 +40,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
   const { language, t } = useI18n();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'office' | 'graph'>('office');
 
   const AGENTS_METADATA = [
     {
@@ -169,29 +172,71 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
         </div>
       </div>
 
-      {/* 6 AI Agents Visual Pipeline Graph */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
-            <Layers className="w-4 h-4 text-indigo-400" />
-            {t.graphTitle}
-          </h3>
-          <span className="text-xs text-gray-500">{t.graphSubtitle}</span>
+      {/* Multi-Agent Visual Area with View Switch */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {viewMode === 'office' ? (
+              <Building2 className="w-4 h-4 text-indigo-400" />
+            ) : (
+              <Layers className="w-4 h-4 text-indigo-400" />
+            )}
+            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+              {viewMode === 'office' ? 'Văn Phòng Ảo 6 AI Agents' : t.graphTitle}
+            </h3>
+          </div>
+
+          {/* View Mode Toggle Switch */}
+          <div className="flex items-center p-1 rounded-xl bg-gray-900 border border-gray-800 shadow-inner">
+            <button
+              onClick={() => setViewMode('office')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'office'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>{t.viewModeOffice}</span>
+            </button>
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                viewMode === 'graph'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
+                  : 'text-gray-400 hover:text-gray-200'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>{t.viewModeGraph}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {AGENTS_METADATA.map((agent) => (
-            <AgentNode
-              key={agent.id}
-              name={agent.name}
-              label={agent.label}
-              description={agent.description}
-              currentActiveAgent={workflowStatus?.current_agent}
-              latestRun={getLatestRunForAgent(agent.name)}
-              onClick={() => handleAgentClick(agent.name)}
-            />
-          ))}
-        </div>
+        {/* Conditional Rendering: Virtual Office vs Classic Graph */}
+        {viewMode === 'office' ? (
+          <VirtualOffice
+            session={session}
+            workflowStatus={workflowStatus}
+            isRunning={isRunning}
+            agentsMetadata={AGENTS_METADATA}
+            onAgentClick={handleAgentClick}
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {AGENTS_METADATA.map((agent) => (
+              <AgentNode
+                key={agent.id}
+                name={agent.name}
+                label={agent.label}
+                description={agent.description}
+                currentActiveAgent={workflowStatus?.current_agent}
+                latestRun={getLatestRunForAgent(agent.name)}
+                onClick={() => handleAgentClick(agent.name)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Execution Runs History List */}

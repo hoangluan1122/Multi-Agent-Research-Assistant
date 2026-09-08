@@ -78,6 +78,8 @@ export const translations = {
     statusWaiting: 'Chờ',
     viewLogLink: 'Xem log →',
     logDetail: 'Chi tiết →',
+    viewModeOffice: '🏢 Văn Phòng Ảo',
+    viewModeGraph: '📊 Sơ Đồ Graph',
 
     agentSearchLabel: '1. Search Agent',
     agentSearchDesc: 'Tìm kiếm & thu thập bài báo từ arXiv, Semantic Scholar.',
@@ -288,6 +290,8 @@ export const translations = {
     statusWaiting: 'Idle',
     viewLogLink: 'View log →',
     logDetail: 'Details →',
+    viewModeOffice: '🏢 Virtual Office',
+    viewModeGraph: '📊 Classic Graph',
 
     agentSearchLabel: '1. Search Agent',
     agentSearchDesc: 'Searches & collects papers from arXiv and Semantic Scholar.',
