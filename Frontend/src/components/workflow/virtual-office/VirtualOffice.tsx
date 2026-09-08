@@ -1,9 +1,10 @@
-// @trace: REQ-VO-001, REQ-VO-002, REQ-VO-006
-import React from 'react';
+// @trace: REQ-VO-001, REQ-VO-002, REQ-VO-006, REQ-STICKMAN-001, REQ-STICKMAN-002, REQ-STICKMAN-003
+import React, { useState } from 'react';
 import type { Session, WorkflowStatus, AgentRun } from '../../../types';
 import { OfficeDesk } from './OfficeDesk';
 import { PantryBar, TreadmillGym, KanbanBoard } from './OfficeDecorations';
-import { Sparkles, Building2, Users, ShieldCheck } from 'lucide-react';
+import { StickmanCourier } from './StickmanCourier';
+import { Sparkles, Building2, Users, ShieldCheck, Send } from 'lucide-react';
 import './officeTheme.css';
 
 interface VirtualOfficeProps {
@@ -29,6 +30,9 @@ export const VirtualOffice: React.FC<VirtualOfficeProps> = ({
   const currentActiveAgent = workflowStatus?.current_agent;
   const agentRuns = workflowStatus?.agent_runs || [];
 
+  const [demoIndex, setDemoIndex] = useState<number | null>(null);
+  const [isDemoRunning, setIsDemoRunning] = useState(false);
+
   const getLatestRunForAgent = (agentName: string): AgentRun | undefined => {
     const runs = agentRuns.filter((r) => r.agent_name === agentName);
     return runs.length > 0 ? runs[runs.length - 1] : undefined;
@@ -41,6 +45,28 @@ export const VirtualOffice: React.FC<VirtualOfficeProps> = ({
     const latest = getLatestRunForAgent(a.name);
     return latest?.status?.toLowerCase() === 'completed';
   }).length;
+
+  // Interactive Demo: Stickman courier walks across all 6 desks delivering documents
+  const handleDemoWalk = () => {
+    if (isDemoRunning) return;
+    setIsDemoRunning(true);
+    let step = 0;
+    setDemoIndex(0);
+
+    const interval = setInterval(() => {
+      step += 1;
+      if (step < 6) {
+        setDemoIndex(step);
+      } else {
+        setDemoIndex(6); // Celebration
+        clearInterval(interval);
+        setTimeout(() => {
+          setDemoIndex(null);
+          setIsDemoRunning(false);
+        }, 2200);
+      }
+    }, 1800);
+  };
 
   return (
     <div className="relative p-6 rounded-3xl bg-slate-950 border border-slate-800/80 shadow-2xl overflow-hidden select-none">
@@ -67,13 +93,23 @@ export const VirtualOffice: React.FC<VirtualOfficeProps> = ({
               </span>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
-              Mô phỏng 6 nhân viên AI cộng tác theo thời gian thực (Multi-Agent Simulation)
+              Mô phỏng 6 nhân viên AI & Người que 2D giao nhận tài liệu thời gian thực
             </p>
           </div>
         </div>
 
-        {/* Header Badges */}
-        <div className="flex items-center gap-3">
+        {/* Header Badges & Demo Walk Button */}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleDemoWalk}
+            disabled={isDemoRunning || isRunning}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-semibold shadow-md transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Kích hoạt người que 2D chạy thử nghiệm chuyển tài liệu qua 6 bàn"
+          >
+            <Send className={`w-3.5 h-3.5 text-amber-400 ${isDemoRunning ? 'animate-spin' : ''}`} />
+            <span>{isDemoRunning ? 'Người Que Đang Giao Việc...' : '🚶‍♂️ Demo Giao Việc'}</span>
+          </button>
+
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs">
             <Users className="w-3.5 h-3.5 text-indigo-400" />
             <span className="text-gray-400">Nhân sự:</span>
@@ -94,26 +130,37 @@ export const VirtualOffice: React.FC<VirtualOfficeProps> = ({
         <KanbanBoard progress={progress} />
       </div>
 
-      {/* Main Office Work Area (Grid 2 Rows x 3 Desks) */}
-      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {agentsMetadata.map((agent) => (
-          <OfficeDesk
-            key={agent.id}
-            id={agent.id}
-            name={agent.name}
-            label={agent.label}
-            description={agent.description}
-            currentActiveAgent={currentActiveAgent}
-            latestRun={getLatestRunForAgent(agent.name)}
-            onClick={() => onAgentClick(agent.name)}
-          />
-        ))}
+      {/* Office Floor Container with 2D Stickman Courier Layer */}
+      <div className="relative z-10">
+        {/* 2D Stickman Courier Navigating and Handing Over Documents */}
+        <StickmanCourier
+          currentActiveAgent={currentActiveAgent}
+          isRunning={isRunning}
+          totalCompleted={completedCount}
+          customTargetIndex={demoIndex}
+        />
+
+        {/* Main Office Work Area (Grid 2 Rows x 3 Desks) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {agentsMetadata.map((agent) => (
+            <OfficeDesk
+              key={agent.id}
+              id={agent.id}
+              name={agent.name}
+              label={agent.label}
+              description={agent.description}
+              currentActiveAgent={currentActiveAgent}
+              latestRun={getLatestRunForAgent(agent.name)}
+              onClick={() => onAgentClick(agent.name)}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Footer hint */}
-      <div className="relative z-10 mt-5 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-gray-400">
-        <span>💡 Nhấp vào bất kỳ bàn làm việc nào của Agent để xem chi tiết nhật ký thực thi (JSON Log).</span>
-        <span className="text-slate-400 font-mono">PaperFlow Office Engine v2.0</span>
+      <div className="relative z-10 mt-5 pt-4 border-t border-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-400">
+        <span>💡 Người que 2D sẽ tự động chạy sang từng bàn để trao tập hồ sơ và giao việc khi workflow chạy.</span>
+        <span className="text-slate-400 font-mono">PaperFlow Office Engine v2.0 • 2D Courier</span>
       </div>
     </div>
   );

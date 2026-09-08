@@ -1,4 +1,4 @@
-﻿/* @trace: REQ-VO-003, REQ-VO-004 */
+/* @trace: REQ-VO-003, REQ-VO-004 */
 /* Keyframe Animations for PaperFlow Virtual Office */
 
 @keyframes typingHands {
@@ -153,4 +153,89 @@
 
 .anim-desk-pulse {
   animation: deskPulseLight 2s infinite ease-in-out;
+}
+
+/* 2D Stickman Courier Keyframe Animations */
+@keyframes stickmanWalkLeg1 {
+  0%, 100% {
+    transform: rotate(28deg);
+  }
+  50% {
+    transform: rotate(-28deg);
+  }
+}
+
+@keyframes stickmanWalkLeg2 {
+  0%, 100% {
+    transform: rotate(-28deg);
+  }
+  50% {
+    transform: rotate(28deg);
+  }
+}
+
+@keyframes stickmanWalkArm1 {
+  0%, 100% {
+    transform: rotate(-35deg);
+  }
+  50% {
+    transform: rotate(35deg);
+  }
+}
+
+@keyframes stickmanWalkArm2 {
+  0%, 100% {
+    transform: rotate(35deg);
+  }
+  50% {
+    transform: rotate(-35deg);
+  }
+}
+
+@keyframes stickmanBobbing {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes handoverPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.6));
+  }
+  50% {
+    transform: scale(1.15) translateY(-2px);
+    filter: drop-shadow(0 0 16px rgba(251, 191, 36, 1));
+  }
+}
+
+.anim-stickman-leg-1 {
+  transform-origin: 20px 36px;
+  animation: stickmanWalkLeg1 0.45s infinite ease-in-out;
+}
+
+.anim-stickman-leg-2 {
+  transform-origin: 20px 36px;
+  animation: stickmanWalkLeg2 0.45s infinite ease-in-out;
+}
+
+.anim-stickman-arm-1 {
+  transform-origin: 20px 20px;
+  animation: stickmanWalkArm1 0.45s infinite ease-in-out;
+}
+
+.anim-stickman-arm-2 {
+  transform-origin: 20px 20px;
+  animation: stickmanWalkArm2 0.45s infinite ease-in-out;
+}
+
+.anim-stickman-bob {
+  animation: stickmanBobbing 0.45s infinite ease-in-out;
+}
+
+.anim-handover-glow {
+  animation: handoverPulse 1.2s infinite ease-in-out;
 }
