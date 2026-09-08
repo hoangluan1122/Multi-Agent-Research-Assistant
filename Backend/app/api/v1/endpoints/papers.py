@@ -23,6 +23,8 @@ from app.schemas.paper import (
     PaperSelectionUpdate,
 )
 
+from app.services.llm_service import llm_service
+
 router = APIRouter(prefix="/papers", tags=["Papers (UC002, UC003, UC004)"])
 
 @router.post("/search", response_model=List[PaperResponse])
@@ -108,6 +110,7 @@ async def upload_paper_pdf(
     db.add(paper)
     await db.commit()
     await db.refresh(paper)
+    paper.analysis = None
     return paper
 
 @router.get("/session/{session_id}", response_model=List[PaperResponse])
@@ -153,4 +156,82 @@ async def analyze_single_paper(paper_id: str, db: AsyncSession = Depends(get_db)
 
     await db.refresh(paper)
     return paper
+
+@router.post("/{paper_id}/translate", response_model=PaperResponse)
+async def translate_single_paper(paper_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Dịch tiêu đề và tóm tắt (Abstract) của bài báo sang Tiếng Việt chuẩn mực.
+    """
+    stmt = select(Paper).where(Paper.id == paper_id).options(selectinload(Paper.analysis))
+    res = await db.execute(stmt)
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    prompt = f"""You are a professional scientific translator and researcher.
+Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
+
+Paper Title (EN): {paper.title}
+Abstract (EN): {paper.abstract or 'No abstract provided'}
+
+Respond strictly in JSON format:
+{{
+  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
+  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
+}}
+"""
+    try:
+        translated = await llm_service.generate_json(prompt)
+        if translated.get("title_vi"):
+            paper.title = translated["title_vi"]
+        if translated.get("abstract_vi"):
+            paper.abstract = translated["abstract_vi"]
+        await db.commit()
+        await db.refresh(paper)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+    return paper
+
+@router.post("/session/{session_id}/translate-all", response_model=List[PaperResponse])
+async def translate_all_session_papers(session_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Dịch toàn bộ tiêu đề và tóm tắt của tất cả bài báo trong phiên sang Tiếng Việt.
+    """
+    stmt = (
+        select(Paper)
+        .where(Paper.session_id == session_id)
+        .options(selectinload(Paper.analysis))
+    )
+    res = await db.execute(stmt)
+    papers = res.scalars().all()
+    if not papers:
+        return []
+
+    for paper in papers:
+        prompt = f"""You are a professional scientific translator and researcher.
+Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
+
+Paper Title (EN): {paper.title}
+Abstract (EN): {paper.abstract or 'No abstract provided'}
+
+Respond strictly in JSON format:
+{{
+  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
+  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
+}}
+"""
+        try:
+            translated = await llm_service.generate_json(prompt)
+            if translated.get("title_vi"):
+                paper.title = translated["title_vi"]
+            if translated.get("abstract_vi"):
+                paper.abstract = translated["abstract_vi"]
+        except Exception:
+            continue
+
+    await db.commit()
+    for p in papers:
+        await db.refresh(p)
+    return papers
 

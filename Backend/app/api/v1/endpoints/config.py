@@ -32,6 +32,7 @@ async def get_system_config():
     )
 
 @router.patch("", response_model=SystemConfigResponse, dependencies=[Depends(verify_admin_key)])
+@router.put("", response_model=SystemConfigResponse, dependencies=[Depends(verify_admin_key)])
 async def update_system_config(payload: SystemConfigUpdate):
     """
     UC013: Cập nhật động cấu hình hệ thống:
@@ -72,4 +73,25 @@ async def update_system_config(payload: SystemConfigUpdate):
         max_search_papers=settings.MAX_SEARCH_PAPERS,
         max_review_retries=settings.MAX_REVIEW_RETRIES
     )
+
+@router.post("/test-llm")
+async def test_llm_connection():
+    """
+    Kiểm tra kết nối trực tiếp với LLM Provider đang cấu hình:
+    - Gửi câu hỏi thử nghiệm ngắn gọn tới mô hình.
+    - Trả về thông báo thành công cùng phản hồi thực tế từ AI hoặc thông báo lỗi rõ ràng.
+    """
+    try:
+        test_prompt = "Say 'PaperFlow LLM connection is healthy and working!' in exactly 1 sentence."
+        response_text = await llm_service.generate_text(test_prompt, temperature=0.0)
+        return {
+            "status": "ok",
+            "message": f"Kết nối {settings.LLM_PROVIDER.upper()} ({settings.DEFAULT_LLM_MODEL}) thành công!",
+            "response": response_text.strip()
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Lỗi kết nối LLM ({settings.LLM_PROVIDER}): {str(e)}"
+        }
 

@@ -18,6 +18,7 @@ import {
   Clock,
 } from 'lucide-react';
 import type { AgentRun } from '../../types';
+import { useI18n } from '../../i18n/context';
 
 interface AgentNodeProps {
   id?: string;
@@ -37,9 +38,11 @@ export const AgentNode: React.FC<AgentNodeProps> = ({
   latestRun,
   onClick,
 }) => {
-  const isCurrentlyRunning = currentActiveAgent === name || latestRun?.status === 'running';
-  const isCompleted = latestRun?.status === 'completed';
-  const isFailed = latestRun?.status === 'failed';
+  const { t } = useI18n();
+  const runStatus = (latestRun?.status || '').toLowerCase();
+  const isCurrentlyRunning = currentActiveAgent === name || runStatus === 'running';
+  const isCompleted = !isCurrentlyRunning && runStatus === 'completed';
+  const isFailed = !isCurrentlyRunning && runStatus === 'failed';
 
   const getIcon = () => {
     switch (name) {
@@ -97,25 +100,25 @@ export const AgentNode: React.FC<AgentNodeProps> = ({
           {isCurrentlyRunning && (
             <span className="flex items-center gap-1 text-indigo-400 font-semibold text-[11px]">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Đang chạy
+              {t.statusInProgress}
             </span>
           )}
           {isCompleted && (
             <span className="flex items-center gap-1 text-emerald-400 font-medium text-[11px]">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              Hoàn thành
+              {t.statusDone}
             </span>
           )}
           {isFailed && (
             <span className="flex items-center gap-1 text-rose-400 font-medium text-[11px]">
               <AlertCircle className="w-3.5 h-3.5" />
-              Thất bại
+              {t.statusError}
             </span>
           )}
           {!latestRun && !isCurrentlyRunning && (
             <span className="flex items-center gap-1 text-gray-500 text-[11px]">
               <Clock className="w-3.5 h-3.5" />
-              Chờ
+              {t.statusWaiting}
             </span>
           )}
         </div>
@@ -129,7 +132,7 @@ export const AgentNode: React.FC<AgentNodeProps> = ({
       {latestRun && (
         <div className="mt-3 pt-2 border-t border-gray-800/80 flex items-center justify-between text-[10px] text-gray-500">
           <span>Log: #{latestRun.id.substring(0, 6)}</span>
-          <span className="text-indigo-400 group-hover:underline">Chi tiết &rarr;</span>
+          <span className="text-indigo-400 group-hover:underline">{t.logDetail}</span>
         </div>
       )}
     </div>

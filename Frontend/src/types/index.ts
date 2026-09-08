@@ -86,7 +86,7 @@ export interface AgentRun {
   id: string;
   session_id: string;
   agent_name: string;
-  status: 'running' | 'completed' | 'failed';
+  status: string;
   step_description?: string;
   input_data: Record<string, any>;
   output_data: Record<string, any>;
@@ -105,7 +105,7 @@ export interface WorkflowStartRequest {
 
 export interface WorkflowStatus {
   session_id: string;
-  status: 'idle' | 'running' | 'completed' | 'failed';
+  status: string;
   current_step: string;
   current_agent?: string;
   progress_percentage: number;

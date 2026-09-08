@@ -6,7 +6,7 @@ Quản lý thông tin chủ đề nghiên cứu, câu hỏi nghiên cứu, trạ
 import uuid
 from typing import Optional, Dict, Any
 from datetime import datetime
-from sqlalchemy import String, DateTime, Text, JSON
+from sqlalchemy import String, DateTime, Text, JSON, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -19,6 +19,10 @@ class ResearchSession(Base):
 
     # Khóa chính dạng UUID
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    
+    # Khóa ngoại liên kết với User (Nullable để tương thích với chế độ Khách / Guest)
+    user_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+
     # Chủ đề nghiên cứu chính (Topic)
     topic: Mapped[str] = mapped_column(String(500), nullable=False)
     # Câu hỏi nghiên cứu chi tiết (Research Question)
@@ -38,6 +42,7 @@ class ResearchSession(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Các mối quan hệ (Relationships) liên kết với các bảng con
+    user = relationship("User", back_populates="sessions")
     papers = relationship("Paper", back_populates="session", cascade="all, delete-orphan")
     reports = relationship("Report", back_populates="session", cascade="all, delete-orphan")
     agent_runs = relationship("AgentRun", back_populates="session", cascade="all, delete-orphan")

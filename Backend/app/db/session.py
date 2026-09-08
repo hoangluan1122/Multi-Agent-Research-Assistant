@@ -38,6 +38,11 @@ async def init_db():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            from sqlalchemy import text
+            try:
+                await conn.execute(text("ALTER TABLE research_sessions ADD COLUMN user_id VARCHAR(36)"))
+            except Exception:
+                pass
     except Exception as e:
         if "postgresql" in settings.DATABASE_URL:
             import logging

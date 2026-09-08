@@ -4,6 +4,7 @@ Gồm có: ResearchSession, Paper, PaperAnalysis, DocumentChunk, Citation, Repor
 """
 
 from app.db.base import Base
+from app.models.user import User
 from app.models.session import ResearchSession
 from app.models.paper import Paper, PaperAnalysis
 from app.models.chunk import DocumentChunk
@@ -13,6 +14,7 @@ from app.models.agent_run import AgentRun
 
 __all__ = [
     "Base",
+    "User",
     "ResearchSession",
     "Paper",
     "PaperAnalysis",

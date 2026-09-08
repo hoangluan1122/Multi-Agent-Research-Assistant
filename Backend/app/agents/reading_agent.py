@@ -158,19 +158,19 @@ class ReadingAgent(BaseAgent):
             logger.error(f"Error ingesting chunks to Qdrant: {e}")
 
         # 3. Sử dụng LLM trích xuất các thành phần có cấu trúc (UC004)
-        prompt = f"""You are an expert scientific researcher. Analyze the following academic paper content and extract structured research components.
+        prompt = f"""You are an expert scientific researcher. Analyze the following academic paper content and extract structured research components in Vietnamese (Tiếng Việt).
 Paper Title: {paper.title}
 Authors: {", ".join(paper.authors) if paper.authors else "N/A"}
 Content:
 {content_text[:5000]}
 
-Extract the following in Vietnamese or English (matching the paper context):
-1. method: The core algorithmic architecture, mathematical approach, or framework.
-2. dataset: Datasets or benchmarks used for training/evaluation.
-3. metrics: Quantitative evaluation metrics and performance scores reported.
-4. results: Key empirical findings and quantitative gains over baselines.
-5. limitations: Constraints, computational bottlenecks, or unaddressed scenarios.
-6. summary: A concise 2-3 sentence overview of the study.
+Extract the following in Vietnamese (Tiếng Việt) with accurate scientific terminology:
+1. method: Kiến trúc mô hình, phương pháp thuật toán cốt lõi.
+2. dataset: Tập dữ liệu huấn luyện, kiểm thử và benchmark được sử dụng.
+3. metrics: Chỉ số định lượng và thước đo hiệu năng (Accuracy, F1, Dice, mIoU...).
+4. results: Kết quả thực nghiệm chính và đóng góp nổi bật.
+5. limitations: Rào cản, hạn chế kỹ thuật và chi phí tính toán.
+6. summary: Bản tóm tắt tổng quan 2-3 câu bằng Tiếng Việt.
 
 Respond in exact JSON format:
 {{

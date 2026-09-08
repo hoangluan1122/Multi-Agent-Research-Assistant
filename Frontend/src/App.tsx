@@ -36,10 +36,16 @@ import { WorkflowDashboard } from './components/workflow/WorkflowDashboard';
 import { PaperDiscovery } from './components/papers/PaperDiscovery';
 import { ReportView } from './components/reports/ReportView';
 import { SettingsModal } from './components/settings/SettingsModal';
+import { AuthModal } from './components/auth/AuthModal';
 import { ToastContainer } from './components/common/Toast';
 import type { ToastMessage } from './components/common/Toast';
+import { useI18n } from './i18n/context';
+import { useAuth } from './context/AuthContext';
 
 export function App() {
+  const { t } = useI18n();
+  const { user } = useAuth();
+
   // State quản lý dữ liệu toàn cục
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
@@ -55,6 +61,7 @@ export function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -82,8 +89,12 @@ export function App() {
       setConfig(sysConfig);
       setBackendHealthy(true);
 
-      if (sessionList.length > 0 && !activeSession) {
-        setActiveSession(sessionList[0]);
+      if (sessionList.length > 0) {
+        if (!activeSession || !sessionList.some((s) => s.id === activeSession.id)) {
+          setActiveSession(sessionList[0]);
+        }
+      } else {
+        setActiveSession(null);
       }
     } catch (err: any) {
       setBackendHealthy(false);
@@ -93,7 +104,7 @@ export function App() {
 
   useEffect(() => {
     loadInitialData();
-  }, [loadInitialData]);
+  }, [user]);
 
   // 2. Load Session Details (Papers, Reports, Citations, Workflow Status)
   const loadSessionDetails = useCallback(async (session: Session) => {
@@ -133,13 +144,12 @@ export function App() {
   }, [activeSession, loadSessionDetails]);
 
   // 3. Workflow Real-time Polling
+  const wfStatusStr = (workflowStatus?.status || '').toLowerCase();
+  const sessionStatusStr = (activeSession?.status || '').toLowerCase();
+
   const isWorkflowRunning =
-    workflowStatus?.status === 'running' ||
-    activeSession?.status === 'searching' ||
-    activeSession?.status === 'reading' ||
-    activeSession?.status === 'summarizing' ||
-    activeSession?.status === 'drafting' ||
-    activeSession?.status === 'reviewing';
+    wfStatusStr === 'running' ||
+    ['searching', 'reading', 'summarizing', 'drafting', 'reviewing', 'running'].includes(sessionStatusStr);
 
   useEffect(() => {
     if (!activeSession || !isWorkflowRunning) {
@@ -152,14 +162,15 @@ export function App() {
         const status = await workflowService.getWorkflowStatus(activeSession.id);
         setWorkflowStatus(status);
 
-        if (status.status === 'completed') {
+        const currentWfStatus = (status.status || '').toLowerCase();
+        if (currentWfStatus === 'completed') {
           addToast('success', 'Quy trình Multi-Agent đã hoàn thành thành công!');
           // Refresh session details & session list
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
           loadSessionDetails(updatedSession);
           sessionService.getSessions().then(setSessions);
-        } else if (status.status === 'failed') {
+        } else if (currentWfStatus === 'failed') {
           addToast('error', `Quy trình bị lỗi: ${status.error_message || 'Không rõ'}`);
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
@@ -236,7 +247,9 @@ export function App() {
   const handleSearchPapers = async (
     query: string,
     maxResults: number,
-    sources: string[]
+    sources: string[],
+    yearStart?: number,
+    yearEnd?: number
   ) => {
     if (!activeSession) return;
 
@@ -246,6 +259,8 @@ export function App() {
         query,
         max_results: maxResults,
         sources,
+        year_start: yearStart,
+        year_end: yearEnd,
       });
       setPapers((prev) => {
         const existingIds = new Set(prev.map((p) => p.id));
@@ -307,6 +322,29 @@ export function App() {
     }
   };
 
+  // Handler: Translate Single Paper
+  const handleTranslatePaper = async (paperId: string) => {
+    try {
+      const translated = await paperService.translatePaper(paperId);
+      setPapers((prev) => prev.map((p) => (p.id === paperId ? translated : p)));
+      addToast('success', 'Đã dịch tiêu đề và tóm tắt bài báo sang Tiếng Việt!');
+    } catch (err: any) {
+      addToast('error', `Dịch bài báo thất bại: ${err.message}`);
+    }
+  };
+
+  // Handler: Translate All Papers
+  const handleTranslateAllPapers = async () => {
+    if (!activeSession) return;
+    try {
+      const translatedList = await paperService.translateAllPapers(activeSession.id);
+      setPapers(translatedList);
+      addToast('success', `Đã dịch toàn bộ ${translatedList.length} bài báo sang Tiếng Việt!`);
+    } catch (err: any) {
+      addToast('error', `Dịch danh sách thất bại: ${err.message}`);
+    }
+  };
+
   // Handler: Export Report
   const handleExportReport = async (format: 'markdown' | 'docx' | 'pdf') => {
     if (!report) return;
@@ -348,6 +386,7 @@ export function App() {
         backendHealthy={backendHealthy}
         onOpenCreateSession={() => setIsCreateModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
       />
 
@@ -379,7 +418,7 @@ export function App() {
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Điều Phối Multi-Agent</span>
+                  <span>{t.tabWorkflow}</span>
                 </button>
 
                 <button
@@ -391,7 +430,7 @@ export function App() {
                   }`}
                 >
                   <Search className="w-3.5 h-3.5" />
-                  <span>Tài Liệu ({papers.length})</span>
+                  <span>{t.tabPapers} ({papers.length})</span>
                 </button>
 
                 <button
@@ -403,7 +442,7 @@ export function App() {
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Báo Cáo Tổng Quan</span>
+                  <span>{t.tabReport}</span>
                 </button>
               </div>
 
@@ -431,6 +470,8 @@ export function App() {
                   onToggleSelectPaper={handleToggleSelectPaper}
                   onBatchSelectPapers={handleBatchSelectPapers}
                   onAnalyzePaper={handleAnalyzePaper}
+                  onTranslatePaper={handleTranslatePaper}
+                  onTranslateAllPapers={handleTranslateAllPapers}
                 />
               )}
 
@@ -452,9 +493,9 @@ export function App() {
                 <FolderPlus className="w-8 h-8" />
               </div>
               <div className="space-y-1 max-w-md">
-                <h3 className="text-xl font-bold text-white">Bắt đầu nghiên cứu với PaperFlow</h3>
+                <h3 className="text-xl font-bold text-white">{t.emptyTitle}</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Tạo một phiên nghiên cứu mới để hệ thống 6 AI Agents tự động tìm kiếm, phân tích tài liệu và soạn thảo bài Literature Review chuyên sâu.
+                  {t.emptyDesc}
                 </p>
               </div>
               <button
@@ -462,7 +503,7 @@ export function App() {
                 className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-bold shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Tạo Phiên Nghiên Cứu Mới</span>
+                <span>{t.emptyBtn}</span>
               </button>
             </div>
           )}
@@ -482,6 +523,11 @@ export function App() {
         config={config}
         onSave={handleSaveConfig}
         onTestLlm={() => configService.testLlm()}
+      />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
       />
 
       {/* Toast Notifications Container */}

@@ -18,6 +18,7 @@ import {
 import type { Session, WorkflowStatus, AgentRun } from '../../types';
 import { AgentNode } from './AgentNode';
 import { AgentLogModal } from './AgentLogModal';
+import { useI18n } from '../../i18n/context';
 
 interface WorkflowDashboardProps {
   session: Session;
@@ -27,46 +28,6 @@ interface WorkflowDashboardProps {
   onRefreshStatus: () => void;
 }
 
-
-const AGENTS_METADATA = [
-  {
-    id: 'search',
-    name: 'SearchAgent',
-    label: '1. Search Agent',
-    description: 'Tìm kiếm & thu thập bài báo từ arXiv, Semantic Scholar.',
-  },
-  {
-    id: 'reading',
-    name: 'ReadingAgent',
-    label: '2. Reading Agent',
-    description: 'Đọc sâu trích xuất Phương pháp, Dataset, Kết quả & Đóng góp.',
-  },
-  {
-    id: 'summarization',
-    name: 'SummarizationAgent',
-    label: '3. Summarization Agent',
-    description: 'Tóm tắt tổng quan & lập bảng đối chiếu ma trận so sánh.',
-  },
-  {
-    id: 'writing',
-    name: 'WritingAgent',
-    label: '4. Writing Agent',
-    description: 'Soạn thảo bài tổng quan tài liệu (Literature Review) chi tiết.',
-  },
-  {
-    id: 'review',
-    name: 'ReviewAgent',
-    label: '5. Review Agent',
-    description: 'Chấm điểm chất lượng, phản biện & rà soát Hallucination.',
-  },
-  {
-    id: 'citation',
-    name: 'CitationAgent',
-    label: '6. Citation Agent',
-    description: 'Kiểm chứng trích dẫn và chuẩn hóa định dạng IEEE/APA.',
-  },
-];
-
 export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
   session,
   workflowStatus,
@@ -74,8 +35,48 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
   onStartWorkflow,
   onRefreshStatus,
 }) => {
+  const { language, t } = useI18n();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+
+  const AGENTS_METADATA = [
+    {
+      id: 'search',
+      name: 'SearchAgent',
+      label: t.agentSearchLabel,
+      description: t.agentSearchDesc,
+    },
+    {
+      id: 'reading',
+      name: 'ReadingAgent',
+      label: t.agentReadingLabel,
+      description: t.agentReadingDesc,
+    },
+    {
+      id: 'summarization',
+      name: 'SummarizationAgent',
+      label: t.agentSummarizationLabel,
+      description: t.agentSummarizationDesc,
+    },
+    {
+      id: 'writing',
+      name: 'WritingAgent',
+      label: t.agentWritingLabel,
+      description: t.agentWritingDesc,
+    },
+    {
+      id: 'review',
+      name: 'ReviewAgent',
+      label: t.agentReviewLabel,
+      description: t.agentReviewDesc,
+    },
+    {
+      id: 'citation',
+      name: 'CitationAgent',
+      label: t.agentCitationLabel,
+      description: t.agentCitationDesc,
+    },
+  ];
 
   const agentRuns = workflowStatus?.agent_runs || [];
 
@@ -101,7 +102,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-              Phiên nghiên cứu
+              {t.sessionLabel}
             </span>
             <span className="text-xs text-gray-500">•</span>
             <span className="text-xs text-gray-400">ID: {session.id.substring(0, 8)}...</span>
@@ -117,7 +118,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
           <button
             onClick={onRefreshStatus}
             className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 transition-colors"
-            title="Làm mới trạng thái"
+            title={t.refreshTooltip}
           >
             <RefreshCw className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />
           </button>
@@ -130,12 +131,12 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
             {isRunning ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Multi-Agent Đang Xử Lý...</span>
+                <span>{t.workflowRunning}</span>
               </>
             ) : (
               <>
                 <Play className="w-4 h-4 fill-white" />
-                <span>Chạy Toàn Bộ Workflow</span>
+                <span>{t.runWorkflowBtn}</span>
               </>
             )}
           </button>
@@ -146,7 +147,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
       <div className="p-5 rounded-2xl bg-gray-900/60 border border-gray-800 space-y-3">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-300">Tiến độ quy trình:</span>
+            <span className="font-semibold text-gray-300">{t.progressLabel}</span>
             <span className="text-indigo-400 font-bold">{progress}%</span>
             {workflowStatus?.current_agent && (
               <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 text-[11px] font-mono">
@@ -155,7 +156,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
             )}
           </div>
           <span className="text-gray-400 text-[11px]">
-            {workflowStatus?.message || session.current_step || 'Sẵn sàng'}
+            {workflowStatus?.message || session.current_step || t.currentStepReady}
           </span>
         </div>
 
@@ -173,9 +174,9 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-2">
             <Layers className="w-4 h-4 text-indigo-400" />
-            Đồ Thị Điều Phối Đa Tác Tử (Multi-Agent Graph)
+            {t.graphTitle}
           </h3>
-          <span className="text-xs text-gray-500">Nhấn vào Agent để xem JSON log chi tiết</span>
+          <span className="text-xs text-gray-500">{t.graphSubtitle}</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -196,23 +197,23 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
       {/* Execution Runs History List */}
       <div className="p-5 rounded-2xl bg-gray-900/60 border border-gray-800 space-y-3">
         <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">
-          Lịch sử thực thi của các Agent ({agentRuns.length} lượt chạy)
+          {t.runHistoryTitle} ({agentRuns.length})
         </h3>
 
         {agentRuns.length === 0 ? (
           <p className="text-xs text-gray-500 py-4 text-center">
-            Chưa có lượt chạy agent nào. Nhấn "Chạy Toàn Bộ Workflow" để bắt đầu.
+            {t.noRunsYet}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-gray-300">
               <thead className="text-[11px] text-gray-400 border-b border-gray-800 uppercase tracking-wider">
                 <tr>
-                  <th className="py-2.5 px-3">Agent</th>
-                  <th className="py-2.5 px-3">Mô tả bước</th>
-                  <th className="py-2.5 px-3">Trạng thái</th>
-                  <th className="py-2.5 px-3">Bắt đầu</th>
-                  <th className="py-2.5 px-3 text-right">Chi tiết</th>
+                  <th className="py-2.5 px-3">{t.colAgent}</th>
+                  <th className="py-2.5 px-3">{t.colStep}</th>
+                  <th className="py-2.5 px-3">{t.colStatus}</th>
+                  <th className="py-2.5 px-3">{t.colStarted}</th>
+                  <th className="py-2.5 px-3 text-right">{t.colDetails}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60">
@@ -227,30 +228,30 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
                   >
                     <td className="py-2.5 px-3 font-semibold text-indigo-300">{run.agent_name}</td>
                     <td className="py-2.5 px-3 text-gray-400 max-w-xs truncate">
-                      {run.step_description || 'Thực thi quy trình'}
+                      {run.step_description || t.stepExecuting}
                     </td>
                     <td className="py-2.5 px-3">
-                      {run.status === 'completed' && (
+                      {run.status?.toLowerCase() === 'completed' && (
                         <span className="text-emerald-400 font-medium flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Hoàn tất
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {t.statusDone}
                         </span>
                       )}
-                      {run.status === 'failed' && (
+                      {run.status?.toLowerCase() === 'failed' && (
                         <span className="text-rose-400 font-medium flex items-center gap-1">
-                          <AlertCircle className="w-3.5 h-3.5" /> Thất bại
+                          <AlertCircle className="w-3.5 h-3.5" /> {t.statusError}
                         </span>
                       )}
-                      {run.status === 'running' && (
+                      {run.status?.toLowerCase() === 'running' && (
                         <span className="text-indigo-400 font-medium flex items-center gap-1">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang chạy
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> {t.statusInProgress}
                         </span>
                       )}
                     </td>
                     <td className="py-2.5 px-3 text-gray-500">
-                      {new Date(run.started_at).toLocaleTimeString('vi-VN')}
+                      {new Date(run.started_at).toLocaleTimeString(language === 'vi' ? 'vi-VN' : 'en-US')}
                     </td>
                     <td className="py-2.5 px-3 text-right text-indigo-400 font-medium hover:underline">
-                      Xem log &rarr;
+                      {t.viewLogLink}
                     </td>
                   </tr>
                 ))}

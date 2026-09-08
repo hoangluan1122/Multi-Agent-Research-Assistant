@@ -8,6 +8,12 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Đảm bảo in ký tự UTF-8 / Emoji trên console Windows
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # Đường dẫn thư mục gốc và các thư mục thành phần
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT_DIR / "Frontend"

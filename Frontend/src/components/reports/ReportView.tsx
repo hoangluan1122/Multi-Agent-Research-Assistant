@@ -22,6 +22,7 @@ import type { Session, Report, Citation } from '../../types';
 import { ReviewScorecard } from './ReviewScorecard';
 import { CitationListModal } from './CitationListModal';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface ReportViewProps {
   session?: Session;
@@ -37,6 +38,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
   onExport,
   onTriggerWorkflow,
 }) => {
+  const { t } = useI18n();
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review'>('content');
@@ -57,9 +59,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
           <FileText className="w-6 h-6" />
         </div>
         <div className="space-y-1 max-w-md mx-auto">
-          <h3 className="text-base font-bold text-white">Chưa có bài tổng quan tài liệu</h3>
+          <h3 className="text-base font-bold text-white">{t.noReportYetTitle}</h3>
           <p className="text-xs text-gray-400">
-            Hệ thống cần chạy quy trình Multi-Agent để phân tích, tổng hợp và soạn thảo báo cáo Literature Review hoàn chỉnh.
+            {t.noReportYetDesc}
           </p>
         </div>
         <button
@@ -67,7 +69,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition-all"
         >
           <Sparkles className="w-4 h-4" />
-          <span>Bắt đầu tạo bài tổng quan</span>
+          <span>{t.startReviewBtn}</span>
         </button>
       </div>
     );
@@ -82,10 +84,10 @@ export const ReportView: React.FC<ReportViewProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">
-              Báo Cáo Tổng Quan Nghiên Cứu (Literature Review)
+              {t.reportHeaderTitle}
             </span>
             <span className="text-xs text-gray-500">•</span>
-            <Badge variant="success">Phiên bản {report.version}.0</Badge>
+            <Badge variant="success">{t.versionBadge} {report.version}.0</Badge>
           </div>
           <h2 className="text-xl font-bold text-white tracking-tight">{report.title}</h2>
         </div>
@@ -98,7 +100,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-indigo-300 hover:text-white border border-gray-700 text-xs font-medium transition-colors"
           >
             <Quote className="w-3.5 h-3.5" />
-            <span>Trích dẫn ({citations.length})</span>
+            <span>{t.citationsBtn} ({citations.length})</span>
           </button>
 
           {/* Export Dropdown / Buttons */}
@@ -109,7 +111,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
                 disabled={exportingFormat !== null}
                 onClick={() => handleExport(fmt)}
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-gray-700/80 transition-all uppercase disabled:opacity-50"
-                title={`Tải về định dạng ${fmt.toUpperCase()}`}
+                title={`${t.exportFormatTooltip} ${fmt.toUpperCase()}`}
               >
                 {exportingFormat === fmt ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
@@ -134,7 +136,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
           }`}
         >
           <FileText className="w-4 h-4" />
-          <span>Nội Dung Báo Cáo</span>
+          <span>{t.tabReportContent}</span>
         </button>
 
         {report.comparison_table && (
@@ -147,7 +149,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             }`}
           >
             <TableIcon className="w-4 h-4" />
-            <span>Ma Trận So Sánh</span>
+            <span>{t.tabComparisonMatrix}</span>
           </button>
         )}
 
@@ -161,7 +163,13 @@ export const ReportView: React.FC<ReportViewProps> = ({
             }`}
           >
             <Award className="w-4 h-4" />
-            <span>Đánh Giá Phản Biện ({latestReview.score.toFixed(1)}/10)</span>
+            <span>
+              {t.tabPeerReview} (
+              {latestReview.score <= 10
+                ? (latestReview.score * 10).toFixed(0)
+                : latestReview.score.toFixed(0)}
+              /100)
+            </span>
           </button>
         )}
       </div>
@@ -182,7 +190,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
         <div className="p-6 rounded-2xl bg-gray-900/90 border border-gray-800 shadow-xl space-y-4">
           <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2">
             <TableIcon className="w-4 h-4 text-indigo-400" />
-            Bảng Đối Chiếu Ma Trận Các Nghiên Cứu
+            {t.matrixSectionTitle}
           </h4>
           <div className="overflow-x-auto custom-scrollbar">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>

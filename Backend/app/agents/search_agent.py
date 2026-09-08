@@ -85,14 +85,31 @@ class SearchAgent(BaseAgent):
                 sources=sources
             )
 
-            # 4. Lưu danh sách bài báo vào Database
+            # 4. Lưu danh sách bài báo vào Database (Tự động dịch sang Tiếng Việt)
             saved_papers = []
             for item in raw_papers:
+                raw_title = item["title"]
+                raw_abstract = item.get("abstract", "")
+                
+                # Tự động chuyển ngữ tiêu đề và tóm tắt sang Tiếng Việt
+                trans_prompt = f"""Translate this academic paper title and abstract into Vietnamese (Tiếng Việt):
+Title: {raw_title}
+Abstract: {raw_abstract}
+Respond in JSON:
+{{"title_vi": "...", "abstract_vi": "..."}}"""
+                try:
+                    trans_res = await llm_service.generate_json(trans_prompt)
+                    final_title = trans_res.get("title_vi") or raw_title
+                    final_abstract = trans_res.get("abstract_vi") or raw_abstract
+                except Exception:
+                    final_title = raw_title
+                    final_abstract = raw_abstract
+
                 paper = Paper(
                     session_id=session_id,
-                    title=item["title"],
+                    title=final_title,
                     authors=item.get("authors", []),
-                    abstract=item.get("abstract", ""),
+                    abstract=final_abstract,
                     year=item.get("year"),
                     venue=item.get("venue"),
                     doi=item.get("doi"),

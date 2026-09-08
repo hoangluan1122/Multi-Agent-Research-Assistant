@@ -3,15 +3,17 @@ Endpoint quản lý Phiên nghiên cứu (Sessions API - UC001).
 Cung cấp các API RESTful cho phép khởi tạo, tra cứu, chỉnh sửa và xóa phiên nghiên cứu khoa học.
 """
 
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, or_
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
 from app.models.session import ResearchSession
 from app.models.paper import Paper
 from app.models.report import Report
+from app.models.user import User
+from app.api.deps import get_current_user_optional
 from app.schemas.session import (
     SessionCreate,
     SessionUpdate,
@@ -22,11 +24,15 @@ from app.schemas.session import (
 router = APIRouter(prefix="/sessions", tags=["Sessions (UC001)"])
 
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
-async def create_session(payload: SessionCreate, db: AsyncSession = Depends(get_db)):
+async def create_session(
+    payload: SessionCreate,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     UC001: Khởi tạo phiên nghiên cứu khoa học mới.
-    - Nhận chủ đề (topic), câu hỏi nghiên cứu (research_question) và các tham số giới hạn (năm, nguồn, số lượng bài báo).
-    - Tạo bản ghi mới trong bảng `research_sessions` với trạng thái ban đầu là READY.
+    - Nhận chủ đề (topic), câu hỏi nghiên cứu (research_question) và các tham số giới hạn.
+    - Tự động liên kết phiên với tài khoản người dùng nếu đã đăng nhập.
     """
     params = payload.parameters or {}
     params.update({
@@ -38,6 +44,7 @@ async def create_session(payload: SessionCreate, db: AsyncSession = Depends(get_
     })
 
     session = ResearchSession(
+        user_id=current_user.id if current_user else None,
         topic=payload.topic,
         research_question=payload.research_question,
         parameters=params,
@@ -53,13 +60,16 @@ async def create_session(payload: SessionCreate, db: AsyncSession = Depends(get_
 async def list_sessions(
     limit: int = 50,
     offset: int = 0,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Lấy danh sách các phiên nghiên cứu gần nhất trong hệ thống.
-    Sắp xếp giảm dần theo thời gian tạo mới nhất.
+    Nếu người dùng đã đăng nhập: Trả về các phiên của chính tài khoản đó.
     """
     stmt = select(ResearchSession).order_by(desc(ResearchSession.created_at)).limit(limit).offset(offset)
+    if current_user:
+        stmt = stmt.where(or_(ResearchSession.user_id == current_user.id, ResearchSession.user_id.is_(None)))
     res = await db.execute(stmt)
     return res.scalars().all()
 

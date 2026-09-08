@@ -173,6 +173,30 @@ class LLMService:
                 "hallucination_risks": [],
                 "citation_coverage": 0.95
             })
+        elif "translate" in prompt_lower or "dịch" in prompt_lower or "title_vi" in prompt_lower:
+            # Smart mock translation extractor
+            title_text = "Nghiên Cứu Tiến Bộ Mới Trong Mô Hình Học Sâu Transformer Cho Phân Đoạn Ảnh Y Tế"
+            abstract_text = (
+                "Nghiên cứu này trình bày tổng quan hệ thống về các mô hình kiến trúc Transformer tiên tiến "
+                "được áp dụng trong phân đoạn hình ảnh y tế. Chúng tôi phân tích so sánh các kiến trúc thuật toán, "
+                "tập dữ liệu benchmark và các đóng góp thực nghiệm then chốt, đồng thời chỉ ra các hạn chế về chi phí tính toán."
+            )
+            if "multi-agent" in prompt_lower:
+                title_text = "Khung Phối Hợp Đa Tác Tử (Multi-Agent) Cho Mô Hình Transformer Trong Xử Lý Y Tế"
+                abstract_text = (
+                    "Chúng tôi đề xuất cơ chế phối hợp đa tác tử mới giúp phân rã các tác vụ phức tạp trong phân đoạn "
+                    "hình ảnh y tế thành các tác tử chuyên biệt, nâng cao độ chính xác và khả năng tổng quát hóa."
+                )
+            elif "empirical" in prompt_lower or "limitation" in prompt_lower:
+                title_text = "Đánh Giá Thực Nghiệm và Những Giới Hạn Của Các Phương Pháp Transformer Hiện Đại"
+                abstract_text = (
+                    "Thông qua các thử nghiệm định lượng nghiêm ngặt trên các bộ dữ liệu công chuẩn, nghiên cứu này "
+                    "đánh giá độ bền vững, độ trễ và khả năng mở rộng của các phương pháp phân đoạn hiện nay."
+                )
+            return json.dumps({
+                "title_vi": title_text,
+                "abstract_vi": abstract_text
+            })
         elif "keywords" in prompt_lower or "extract" in prompt_lower:
             return "transformer deep learning medical segmentation"
         elif "summary" in prompt_lower or "synthesize" in prompt_lower or "so sánh" in prompt_lower:

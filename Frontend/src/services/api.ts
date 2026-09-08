@@ -16,6 +16,15 @@ export const apiClient = axios.create({
   timeout: 60000,
 });
 
+// Interceptor tự động đính kèm JWT Bearer Token nếu người dùng đã đăng nhập
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('paperflow_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 // Interceptor xử lý phản hồi và trích xuất thông điệp lỗi chi tiết từ FastAPI backend
 apiClient.interceptors.response.use(
   (response) => response,

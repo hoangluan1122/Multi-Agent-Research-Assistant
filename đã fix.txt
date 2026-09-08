@@ -1,0 +1,62 @@
+
+🌟 BẢNG TỔNG HỢP CÁC HẠNG MỤC ĐÃ HOÀN THIỆN
+
+
+                                    HỆ THỐNG PAPERFLOW
+  ┌───────────────────────┬───────────────────────┬───────────────────────┐
+  │   1. NÂNG CẤP DỮ LIỆU │   2. BẢO MẬT & AUTH   │ 3. VIỆT HÓA & DỊCH AI │
+  │   • Chuyển Neon Cloud │   • Đăng ký / Đăng nhập   • 100% Giao diện VI/EN  │
+  │     PostgreSQL (v18.6)│   • Mã hóa PBKDF2-SHA256  • Auto-translate Paper  │
+  │   • Driver asyncpg    │   • JWT Access Token      • Nút "Dịch sang VI"    │
+  │   • Auto-migration    │   • Phân lập dữ liệu User │   Abstract & Analysis │
+  └───────────────────────┴───────────────────────┴───────────────────────┘
+                                      │
+  ┌───────────────────────────────────┴───────────────────────────────────┐
+  │         4. ĐIỀU PHỐI MULTI-AGENT & SỬA LỖI GIAO DIỆN                  │
+  │   • Đồng bộ chuẩn xác thứ tự 6 Agents: 1 ➔ 2 ➔ 3 ➔ 4 ➔ 5 ➔ 6          │
+  │   • Sửa lỗi hiển thị đè Badge trạng thái "Đang chạy / Hoàn tất"       │
+  │   • Sửa lỗi crash thư viện xuất file Word/PDF trên Windows             │
+  │   • Bổ sung Test LLM Connection trực tiếp từ Modal Cài đặt            │
+  └───────────────────────────────────────────────────────────────────────┘
+1. 🗄️ Nâng cấp Cơ sở dữ liệu Cloud (Neon PostgreSQL)
+Chuyển đổi sang Neon Serverless PostgreSQL: Cấu hình driver bất đồng bộ asyncpg trong 
+.env
+, kết nối trực tiếp đến cụm máy chủ PostgreSQL 18.6 trên đám mây Neon.tech.
+Tự động khởi tạo Schema: Toàn bộ các bảng users, research_sessions, papers, paper_chunks, reports, citations được đồng bộ và lưu trữ an toàn 24/7 trên Cloud với mã hóa SSL.
+Cơ chế Auto-Fallback: Nếu ngắt mạng hoặc máy chủ Cloud chưa phản hồi, hệ thống có cơ chế tự động chuyển sang SQLite cục bộ để không bao giờ bị crash ứng dụng.
+2. 🔐 Hệ thống Xác thực Tài khoản & Phân lập Dữ liệu (JWT Auth)
+Đăng ký & Đăng nhập: Xây dựng trọn vẹn từ Backend API (/api/v1/auth/register, /login, /me) đến Frontend Modal 
+AuthModal.tsx
+.
+Tiêu chuẩn Bảo mật NIST:
+Mật khẩu được băm bảo mật bằng PBKDF2-HMAC-SHA256 với 100.000 vòng lặp + Salt ngẫu nhiên 16 bytes.
+So sánh mật khẩu an toàn với hmac.compare_digest chống tấn công Timing Attack.
+Cấp phát JWT Access Token (HS256, hạn 7 ngày) và tự động đính kèm qua Axios Request Interceptor.
+Phân lập dữ liệu riêng tư (Multi-user Isolation): Các phiên nghiên cứu của từng tài khoản được gắn với user_id của riêng họ, người khác không thể xem hoặc chỉnh sửa.
+Quản lý phiên: Nút Đăng nhập / Menu tài khoản trên Header, hỗ trợ Đăng xuất (Logout) và tự động duy trì phiên đăng nhập khi mở lại trình duyệt.
+3. 🌐 Việt Hóa 100% & Hệ Thống Tự Động Dịch Thuật Học Thuật
+Bộ chuyển đổi Đa ngôn ngữ (i18n): Xây dựng 
+I18nProvider
+ hỗ trợ chuyển đổi tức thì giữa Tiếng Việt (mặc định) và Tiếng Anh, ghi nhớ lựa chọn trên trình duyệt.
+Tự động dịch Tiêu đề & Tóm tắt (Abstract):
+Search Agent: Tự động chuyển ngữ tiêu đề và tóm tắt bài báo từ arXiv / Semantic Scholar sang Tiếng Việt ngay khi thu thập.
+Reading Agent: Trích xuất dữ liệu phân tích sâu (Phương pháp, Dataset, Đóng góp, Hạn chế) bằng Tiếng Việt.
+Nút Dịch linh hoạt: Bổ sung nút "Dịch Tiếng Việt" trên từng bài báo và nút "🌐 Dịch Toàn Bộ Sang Tiếng Việt" trên trang Quản lý tài liệu.
+4. 🔄 Chuẩn Hóa Chu Trình Multi-Agent & Sửa Lỗi Giao Diện
+Đồng bộ chuẩn xác thứ tự 6 AI Agents (1 đến 6):
+1. Search Agent: Tìm kiếm & thu thập bài báo.
+2. Reading Agent: Đọc PDF, bóc tách cấu trúc & nhúng Vector RAG.
+3. Summarization Agent: Tóm tắt tổng hợp & lập ma trận so sánh.
+4. Writing Agent: Soạn thảo bài tổng quan Literature Review chi tiết.
+5. Review Agent: Đọc phản biện, chấm điểm chất lượng & rà soát Hallucination.
+6. Citation Agent: Kiểm chứng, liên kết và xuất danh mục trích dẫn chuẩn IEEE/APA cuối cùng.
+Sửa lỗi chập Badge: Khắc phục triệt để lỗi logic trong 
+AgentNode.tsx
+ khiến thẻ Agent hiển thị cùng lúc cả Đang chạy và Hoàn tất.
+5. ⚙️ Sửa Lỗi Ổn Định Hệ Thống & Cấu Hình
+Sửa lỗi N+1 SQLAlchemy: Bổ sung lazy="selectin" cho các quan hệ trong model Paper để triệt tiêu lỗi DetachedInstanceError.
+Khắc phục lỗi DLL Windows: Xử lý an toàn thư viện python-docx và reportlab trong 
+export_service.py
+ để ứng dụng không bị hệ điều hành Windows chặn khi xuất file báo cáo.
+Test LLM Trực Tiếp: Thêm nút "Kiểm tra kết nối LLM" trong hộp thoại Cài đặt để xác minh nhanh API Key (Gemini/OpenAI) mà không cần chạy cả quy trình.
+💡 Hiện tại toàn bộ hệ thống từ Backend, Frontend đến Cơ sở dữ liệu Cloud Neon PostgreSQL đều đang hoạt động hoàn hảo và sẵn sàng phục vụ công việc nghiên cứu của bạn!

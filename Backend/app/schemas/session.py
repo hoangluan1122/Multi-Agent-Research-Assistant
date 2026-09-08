@@ -27,6 +27,7 @@ class SessionUpdate(BaseModel):
 class SessionResponse(BaseModel):
     """Schema dữ liệu trả về thông tin tóm tắt của một phiên nghiên cứu."""
     id: str
+    user_id: Optional[str] = None
     topic: str
     research_question: Optional[str] = None
     parameters: Dict[str, Any] = {}
