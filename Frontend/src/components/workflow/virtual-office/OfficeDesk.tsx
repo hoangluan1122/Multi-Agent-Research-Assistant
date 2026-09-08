@@ -12,6 +12,7 @@ interface OfficeDeskProps {
   description: string;
   currentActiveAgent?: string;
   latestRun?: AgentRun;
+  isDelivering?: boolean;
   onClick: () => void;
 }
 
@@ -21,6 +22,7 @@ export const OfficeDesk: React.FC<OfficeDeskProps> = ({
   description,
   currentActiveAgent,
   latestRun,
+  isDelivering = false,
   onClick,
 }) => {
   const runStatus = (latestRun?.status || '').toLowerCase();
@@ -105,7 +107,12 @@ export const OfficeDesk: React.FC<OfficeDeskProps> = ({
       <div className="relative w-full flex flex-col items-center justify-center my-2">
         {/* 1. Mascot Character Sitting at the Desk (Behind) */}
         <div className="relative z-10 -mb-4">
-          <AgentCharacter agentName={name} status={characterStatus} currentTask={description} />
+          <AgentCharacter
+            agentName={name}
+            status={characterStatus}
+            currentTask={description}
+            isDelivering={isDelivering}
+          />
         </div>
 
         {/* 2. Desk Surface (Table with Laptop/Monitor on Top) */}
