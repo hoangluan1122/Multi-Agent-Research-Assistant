@@ -10,6 +10,7 @@ interface OfficeDeskProps {
   name: string;
   label: string;
   description: string;
+  isWorkflowRunning?: boolean;
   currentActiveAgent?: string;
   latestRun?: AgentRun;
   isDelivering?: boolean;
@@ -20,13 +21,14 @@ export const OfficeDesk: React.FC<OfficeDeskProps> = ({
   name,
   label,
   description,
+  isWorkflowRunning = false,
   currentActiveAgent,
   latestRun,
   isDelivering = false,
   onClick,
 }) => {
   const runStatus = (latestRun?.status || '').toLowerCase();
-  const isCurrentlyRunning = currentActiveAgent === name || runStatus === 'running';
+  const isCurrentlyRunning = isWorkflowRunning && (currentActiveAgent === name || runStatus === 'running');
   const isCompleted = !isCurrentlyRunning && runStatus === 'completed';
   const isFailed = !isCurrentlyRunning && runStatus === 'failed';
 

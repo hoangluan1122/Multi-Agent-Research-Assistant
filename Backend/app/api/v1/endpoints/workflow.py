@@ -100,7 +100,7 @@ async def get_workflow_status(session_id: str, db: AsyncSession = Depends(get_db
         session_id=session.id,
         status=session.status,
         current_step=session.current_step,
-        current_agent=runs[-1].agent_name if runs else None,
+        current_agent=runs[-1].agent_name if (runs and session.status == "RUNNING") else None,
         progress_percentage=progress,
         message=session.current_step.replace("_", " ").title(),
         agent_runs=[AgentRunResponse.model_validate(r) for r in runs],

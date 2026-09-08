@@ -213,6 +213,7 @@ export const VirtualOffice: React.FC<VirtualOfficeProps> = ({
               name={agent.name}
               label={agent.label}
               description={agent.description}
+              isWorkflowRunning={isRunning}
               currentActiveAgent={currentActiveAgent}
               latestRun={getLatestRunForAgent(agent.name)}
               isDelivering={activeHandover?.fromIndex === index}
