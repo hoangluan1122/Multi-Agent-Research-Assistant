@@ -13,7 +13,7 @@ from app.models.session import ResearchSession
 from app.models.paper import Paper
 from app.models.report import Report
 from app.models.user import User
-from app.api.deps import get_current_user_optional
+from app.api.deps import get_current_user_optional, verify_session_access
 from app.schemas.session import (
     SessionCreate,
     SessionUpdate,
@@ -23,6 +23,7 @@ from app.schemas.session import (
 
 router = APIRouter(prefix="/sessions", tags=["Sessions (UC001)"])
 
+# @trace: REQ-001, REQ-002
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     payload: SessionCreate,
@@ -56,6 +57,7 @@ async def create_session(
     await db.refresh(session)
     return session
 
+# @trace: REQ-001, REQ-002
 @router.get("", response_model=List[SessionResponse])
 async def list_sessions(
     limit: int = 50,
@@ -73,12 +75,18 @@ async def list_sessions(
     res = await db.execute(stmt)
     return res.scalars().all()
 
+# @trace: REQ-001, REQ-002
 @router.get("/{session_id}", response_model=SessionDetailResponse)
-async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Xem chi tiết thông tin của một phiên nghiên cứu:
+    - Kiểm tra quyền truy cập (không xem nhầm dữ liệu của tài khoản khác).
     - Kèm theo số lượng bài báo (paper_count).
-    - Kiểm tra xem phiên đã có báo cáo hoàn chỉnh chưa và lấy ID báo cáo mới nhất.
+    - Lấy ID báo cáo mới nhất.
     """
     stmt = (
         select(ResearchSession)
@@ -90,10 +98,13 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
 
+    verify_session_access(session, current_user)
+
     latest_report = session.reports[-1] if session.reports else None
 
     return SessionDetailResponse(
         id=session.id,
+        user_id=session.user_id,
         topic=session.topic,
         research_question=session.research_question,
         parameters=session.parameters or {},
@@ -107,20 +118,25 @@ async def get_session(session_id: str, db: AsyncSession = Depends(get_db)):
         latest_report_id=latest_report.id if latest_report else None
     )
 
+# @trace: REQ-001, REQ-002
 @router.patch("/{session_id}", response_model=SessionResponse)
 async def update_session(
     session_id: str,
     payload: SessionUpdate,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Cập nhật chủ đề, câu hỏi nghiên cứu hoặc tham số của một phiên đang tồn tại.
+    Chỉ cho phép chủ sở hữu phiên thực hiện.
     """
     stmt = select(ResearchSession).where(ResearchSession.id == session_id)
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
 
     if payload.topic is not None:
         session.topic = payload.topic
@@ -133,16 +149,24 @@ async def update_session(
     await db.refresh(session)
     return session
 
+# @trace: REQ-001, REQ-002
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_session(session_id: str, db: AsyncSession = Depends(get_db)):
+async def delete_session(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Xóa bỏ một phiên nghiên cứu và toàn bộ dữ liệu phụ thuộc liên quan (cascade).
+    Chỉ cho phép chủ sở hữu phiên thực hiện.
     """
     stmt = select(ResearchSession).where(ResearchSession.id == session_id)
     res = await db.execute(stmt)
     session = res.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
 
     await db.delete(session)
     await db.commit()

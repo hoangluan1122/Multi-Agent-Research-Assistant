@@ -6,15 +6,20 @@ Lưu trữ nội dung Markdown của báo cáo, bảng so sánh tổng hợp, ph
 import uuid
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 class Report(Base):
     """
+    # @trace: REQ-003, REQ-007
     Bảng reports: Lưu trữ bản báo cáo tổng quan tài liệu (Literature Review) được tạo tự động bởi WritingAgent.
+    Đảm bảo tính toàn vẹn phiên bản không trùng lặp qua UniqueConstraint(session_id, version).
     """
     __tablename__ = "reports"
+    __table_args__ = (
+        UniqueConstraint("session_id", "version", name="uq_session_report_version"),
+    )
 
     # Khóa chính dạng UUID
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

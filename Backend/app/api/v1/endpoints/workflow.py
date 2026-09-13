@@ -5,7 +5,7 @@ Cung cấp API kích hoạt chu trình nghiên cứu tự động chạy nền (
 
 import json
 import asyncio
-from typing import List
+from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,8 @@ from sqlalchemy import select, desc
 from app.db.session import get_db
 from app.models.session import ResearchSession
 from app.models.agent_run import AgentRun
+from app.models.user import User
+from app.api.deps import get_current_user_optional, verify_session_access
 from app.orchestrator.workflow import workflow_engine
 from app.orchestrator.state import workflow_broadcaster
 from app.schemas.agent import (
@@ -23,16 +25,19 @@ from app.schemas.agent import (
 
 router = APIRouter(prefix="/workflow", tags=["Workflow & Agents (UC009, UC010, UC011)"])
 
+# @trace: REQ-002, REQ-004, REQ-006
 @router.post("/start", status_code=status.HTTP_202_ACCEPTED)
 async def start_research_workflow(
     payload: WorkflowStartRequest,
     background_tasks: BackgroundTasks,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Kích hoạt chu trình nghiên cứu Multi-Agent tự động cho một phiên:
-    - Kiểm tra trạng thái phiên xem có đang chạy hay không.
-    - Đẩy tác vụ chạy nền `workflow_engine.run_full_workflow` qua FastAPI BackgroundTasks.
+    - Kiểm tra quyền sở hữu phiên nghiên cứu (Multi-user Isolation).
+    - Chống chạy trùng (Idempotency): Nếu phiên đang RUNNING, từ chối với HTTP 409 Conflict.
+    - Cập nhật trạng thái RUNNING tức thì vào DB trước khi dispatch BackgroundTask.
     - Trả về phản hồi tức thì với mã HTTP 202 Accepted.
     """
     stmt = select(ResearchSession).where(ResearchSession.id == payload.session_id)
@@ -41,8 +46,20 @@ async def start_research_workflow(
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
 
+    verify_session_access(session, current_user)
+
+    # Chống chạy trùng lặp: Nếu đang chạy, trả về HTTP 409 Conflict
     if session.status == "RUNNING":
-        return {"message": "Workflow is already running for this session", "session_id": payload.session_id}
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Phiên nghiên cứu '{payload.session_id}' đang trong tiến trình chạy (RUNNING). Vui lòng chờ hoàn tất."
+        )
+
+    # Cập nhật trạng thái RUNNING tức thì
+    session.status = "RUNNING"
+    session.current_step = "QUEUED"
+    session.error_message = None
+    await db.commit()
 
     params = session.parameters or {}
     citation_style = params.get("citation_style", "IEEE")
@@ -62,10 +79,16 @@ async def start_research_workflow(
         "status": "RUNNING"
     }
 
+# @trace: REQ-002, REQ-004, REQ-006
 @router.get("/status/{session_id}", response_model=WorkflowStatusResponse)
-async def get_workflow_status(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_workflow_status(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Tra cứu trạng thái thực thi hiện tại của quy trình Multi-Agent:
+    - Kiểm tra quyền truy cập phiên (Multi-user Isolation).
     - Tính toán % tiến độ hoàn thành dựa trên chặng bước (`current_step`).
     - Trả về toàn bộ danh sách lịch sử chạy của các Agent (`agent_runs`).
     """
@@ -74,6 +97,8 @@ async def get_workflow_status(session_id: str, db: AsyncSession = Depends(get_db
     session = res.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
 
     # Truy vấn danh sách lịch sử thực thi của các tác tử
     r_stmt = select(AgentRun).where(AgentRun.session_id == session_id).order_by(AgentRun.started_at)
@@ -107,13 +132,24 @@ async def get_workflow_status(session_id: str, db: AsyncSession = Depends(get_db
         error_message=session.error_message
     )
 
+# @trace: REQ-002
 @router.get("/stream/{session_id}")
-async def stream_workflow_progress(session_id: str):
+async def stream_workflow_progress(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Luồng Server-Sent Events (SSE) phát trực tiếp tiến trình theo thời gian thực tới giao diện React:
     - Duy trì kết nối liên tục, tự động gửi ping keep-alive mỗi 30s.
     - Đóng kết nối khi hoàn tất (COMPLETED) hoặc thất bại (FAILED).
     """
+    stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if session:
+        verify_session_access(session, current_user)
+
     queue = workflow_broadcaster.subscribe(session_id)
 
     async def event_generator():

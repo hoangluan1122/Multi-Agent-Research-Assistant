@@ -69,3 +69,17 @@ async def get_current_user_optional(
     res = await db.execute(stmt)
     return res.scalar_one_or_none()
 
+# @trace: REQ-002
+def verify_session_access(session, current_user: Optional[User]) -> None:
+    """
+    Kiểm tra quyền truy cập phiên nghiên cứu (Multi-user Isolation):
+    - Nếu phiên có user_id: Chỉ chính chủ nhân (current_user.id == session.user_id) mới được phép truy cập.
+    - Nếu không khớp hoặc chưa đăng nhập: Bắn lỗi HTTP 403 Forbidden.
+    """
+    if getattr(session, "user_id", None) is not None:
+        if not current_user or current_user.id != session.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Bạn không có quyền truy cập hoặc thao tác trên phiên nghiên cứu này."
+            )
+

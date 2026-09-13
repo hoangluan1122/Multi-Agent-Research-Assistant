@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_HOST: str = "0.0.0.0"
     APP_PORT: int = 8000
+    DEBUG: bool = True
     # Cấu hình bảo mật & JWT Token
     SECRET_KEY: str = "paperflow-super-secure-jwt-secret-key-2026-multi-agent-system"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 ngày

@@ -12,10 +12,11 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.db.session import AsyncSessionLocal
 from app.models.session import ResearchSession
 from app.models.paper import Paper
+from app.models.report import Report
 from app.agents.search_agent import search_agent
 from app.agents.reading_agent import reading_agent
 from app.agents.summarization_agent import summarization_agent
@@ -113,8 +114,15 @@ class ResearchWorkflowEngine:
                 latest_report_id = None
                 feedback = None
 
+                # @trace: REQ-003
+                # Xác định số version tiếp theo từ DB để đảm bảo không bao giờ trùng lặp version
+                max_v_stmt = select(func.max(Report.version)).where(Report.session_id == session_id)
+                current_max_v = (await db.execute(max_v_stmt)).scalar() or 0
+                current_version = current_max_v
+
                 while retry_count <= max_retries and not is_passed:
-                    version = retry_count + 1
+                    current_version += 1
+                    version = current_version
                     await self._notify(
                         session_id,
                         "RUNNING",

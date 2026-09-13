@@ -16,6 +16,8 @@ from app.models.paper import Paper
 from app.models.session import ResearchSession
 from app.agents.search_agent import search_agent
 from app.agents.reading_agent import reading_agent
+from app.models.user import User
+from app.api.deps import get_current_user_optional, verify_session_access
 from app.schemas.paper import (
     PaperSearchRequest,
     PaperResponse,
@@ -27,13 +29,16 @@ from app.services.llm_service import llm_service
 
 router = APIRouter(prefix="/papers", tags=["Papers (UC002, UC003, UC004)"])
 
+# @trace: REQ-001, REQ-002
 @router.post("/search", response_model=List[PaperResponse])
 async def search_academic_papers(
     payload: PaperSearchRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     UC002: Tìm kiếm tài liệu học thuật trực tuyến.
+    - Kiểm tra quyền sở hữu phiên nghiên cứu.
     - Kích hoạt SearchAgent truy vấn từ ArXiv và Semantic Scholar.
     - Lọc điểm tương đồng ngữ nghĩa và lưu vào bảng `papers`.
     - Trả về danh sách toàn bộ các bài báo thuộc phiên nghiên cứu.
@@ -43,6 +48,8 @@ async def search_academic_papers(
     session = res.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
 
     await search_agent.run(
         db=db,
@@ -63,15 +70,18 @@ async def search_academic_papers(
     p_res = await db.execute(p_stmt)
     return p_res.scalars().all()
 
+# @trace: REQ-001, REQ-002
 @router.post("/upload", response_model=PaperResponse)
 async def upload_paper_pdf(
     session_id: str = Form(...),
     title: Optional[str] = Form(None),
     file: UploadFile = File(...),
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     UC003: Tải lên tệp PDF bài báo trực tiếp từ máy tính người dùng.
+    - Kiểm tra quyền sở hữu phiên nghiên cứu.
     - Lưu file vào thư mục `uploads/{session_id}/`.
     - Tạo bản ghi Paper mới với nguồn là `upload` và gán trạng thái PENDING.
     """
@@ -81,7 +91,9 @@ async def upload_paper_pdf(
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
 
-    if not file.filename.lower().endswith(".pdf"):
+    verify_session_access(session, current_user)
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     # Lưu file PDF vào ổ đĩa cục bộ
@@ -113,18 +125,32 @@ async def upload_paper_pdf(
     paper.analysis = None
     return paper
 
+# @trace: REQ-001, REQ-002
 @router.get("/session/{session_id}", response_model=List[PaperResponse])
-async def get_session_papers(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session_papers(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Lấy danh sách toàn bộ các bài báo khoa học đã được tìm thấy hoặc tải lên trong một phiên.
+    Kiểm tra quyền truy cập phiên (không xem nhầm bài báo của người khác).
     """
-    stmt = (
+    stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
+
+    p_stmt = (
         select(Paper)
         .where(Paper.session_id == session_id)
         .options(selectinload(Paper.analysis))
     )
-    res = await db.execute(stmt)
-    return res.scalars().all()
+    p_res = await db.execute(p_stmt)
+    return p_res.scalars().all()
 
 @router.post("/selection", status_code=status.HTTP_200_OK)
 async def update_paper_selection(payload: PaperSelectionUpdate, db: AsyncSession = Depends(get_db)):
