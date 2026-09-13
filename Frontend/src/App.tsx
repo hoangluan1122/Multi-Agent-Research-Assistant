@@ -41,10 +41,12 @@ import { ToastContainer } from './components/common/Toast';
 import type { ToastMessage } from './components/common/Toast';
 import { useI18n } from './i18n/context';
 import { useAuth } from './context/AuthContext';
+import { Welcome } from './components/Welcome';
 
 export function App() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const { user } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(true);
 
   // State quản lý dữ liệu toàn cục
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -378,7 +380,9 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans">
+    <div className="pf-app min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans">
+      {showWelcome && <Welcome signedIn={!!user} onAuth={() => setIsAuthOpen(true)} onSettings={() => setIsSettingsModalOpen(true)} onWorkspace={() => setShowWelcome(false)} onStart={() => { setShowWelcome(false); setIsCreateModalOpen(true); }} />}
+      {!showWelcome && <>
       {/* Top Navigation Header */}
       <Header
         currentSession={activeSession}
@@ -391,7 +395,7 @@ export function App() {
       />
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="pf-workspace flex-1 flex w-full mx-auto">
         {/* Sidebar */}
         <Sidebar
           sessions={sessions}
@@ -404,11 +408,12 @@ export function App() {
         />
 
         {/* Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="pf-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <button className="pf-workspace-home" onClick={() => setShowWelcome(true)}>← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}</button>
           {activeSession ? (
             <div className="space-y-6 max-w-5xl mx-auto">
               {/* Tab Navigation */}
-              <div className="flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
+              <div className="pf-tabs flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
                 <button
                   onClick={() => setActiveTab('workflow')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -509,6 +514,7 @@ export function App() {
           )}
         </main>
       </div>
+      </>}
 
       {/* Global Modals */}
       <CreateSessionModal

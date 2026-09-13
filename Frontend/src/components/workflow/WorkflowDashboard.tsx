@@ -40,7 +40,7 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
   const { language, t } = useI18n();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'office' | 'graph'>('office');
+  const [viewMode, setViewMode] = useState<'office' | 'graph'>('graph');
 
   const AGENTS_METADATA = [
     {

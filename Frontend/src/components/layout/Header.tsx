@@ -120,6 +120,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Language Switcher Toggle */}
           <button
             onClick={() => setLanguage(language === 'vi' ? 'en' : 'vi')}
+            aria-label={language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl bg-gray-800/80 hover:bg-gray-750 text-indigo-300 hover:text-white border border-gray-700 transition-all shadow-sm"
             title={language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
           >
@@ -174,6 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button
               onClick={onOpenAuth}
+              aria-label={t.loginBtn}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-indigo-300 hover:text-white border border-indigo-500/40 text-xs font-semibold transition-all shadow-sm"
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -184,6 +186,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Create session button */}
           <button
             onClick={onOpenCreateSession}
+            aria-label={t.newSessionBtn}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />

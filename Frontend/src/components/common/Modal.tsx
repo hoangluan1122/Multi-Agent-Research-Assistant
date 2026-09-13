@@ -61,6 +61,9 @@ export const Modal: React.FC<ModalProps> = ({
 
       {/* Khung thân hộp thoại Modal */}
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={`relative w-full ${maxWidthStyles[maxWidth]} my-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-purple-950/20 text-gray-100 z-10 overflow-hidden flex flex-col max-h-[90vh]`}
       >
         {/* Tiêu đề Modal Header */}
@@ -71,6 +74,7 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Đóng / Close"
             className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
           >
             <X className="w-5 h-5" />

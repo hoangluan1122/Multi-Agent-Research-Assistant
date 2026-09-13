@@ -1,0 +1,135 @@
+/* Shared light theme for the existing workflow, document views and dialogs.
+   Compatibility selectors keep the original components and behavior intact. */
+:root { --pf-canvas:#fafbf9; --pf-surface:#fff; --pf-soft:#f0f2ed; --pf-ink:#202124; --pf-muted:#646970; --pf-border:#dfe4de; --pf-accent:#245ce1; }
+.pf-app { background:var(--pf-canvas); color:var(--pf-ink); font-family:Arial,'Segoe UI',sans-serif; }
+.pf-app header { background:#fafbf9f5; }
+.pf-app header>div { max-width:none; height:76px; }
+.pf-workspace { min-height:calc(100vh - 76px); }
+.pf-workspace aside { background:var(--pf-soft); width:268px; flex-shrink:0; }
+.pf-content { background:var(--pf-canvas); }
+.pf-content>div { max-width:1200px; }
+.pf-app .pf-workspace-home { color:var(--pf-muted); }
+.pf-app .pf-workspace-home:hover { color:var(--pf-accent); }
+.pf-tabs { max-width:100%; overflow-x:auto; border:0; background:var(--pf-soft); }
+.pf-tabs button { white-space:nowrap; flex-shrink:0; min-height:42px; }
+.pf-app :is(input,textarea,select) { color:var(--pf-ink); background:var(--pf-surface); border-color:var(--pf-border); accent-color:var(--pf-accent); }
+.pf-app :is(input,textarea)::placeholder { color:#7c847e; }
+.pf-app :is(button,a,input,textarea,select):focus-visible { outline:3px solid #245ce180; outline-offset:3px; }
+.pf-app button { transition-duration:180ms; }
+.pf-app button:disabled { cursor:not-allowed; }
+.pf-app .prose { color:#3e4641; font-size:15px; line-height:1.9; }
+.pf-app .prose :is(h1,h2,h3,h4) { color:var(--pf-ink); font-weight:600; }
+.pf-app .prose :is(th,td,h1) { border-color:var(--pf-border); }
+.pf-app .prose :is(th,code) { background:var(--pf-soft); color:var(--pf-ink); }
+.pf-app .prose tr:nth-child(even) { background:#f8faf6; }
+.pf-app .prose blockquote { color:var(--pf-muted); border-color:#8ba895; }
+.pf-app [class*="shadow-"] { --tw-shadow-color:transparent; }
+.pf-app :is(.shadow-xl,.shadow-2xl,.shadow-lg) { box-shadow:0 8px 28px #20302008; }
+.pf-app [class*="bg-gradient-"] { background-image:none; background-color:#eaf0e7; }
+.pf-app [class*="bg-clip-text"] { color:var(--pf-ink); background:transparent; -webkit-text-fill-color:currentColor; }
+.pf-app button[class*="bg-gradient-"] { background:var(--pf-ink); color:white; box-shadow:none; border-color:transparent; }
+.pf-app button[class*="bg-gradient-"]:hover { background:var(--pf-accent); }
+.pf-app button[class*="bg-gradient-"] * { color:inherit; }
+.pf-app .pf-tabs button[class*="bg-gradient-"] { background:white; color:var(--pf-accent); box-shadow:0 1px 4px #20302010; }
+.pf-content>div { animation:pf-panel-in .22s ease-out; }
+@keyframes pf-panel-in { from{opacity:.5;transform:translateY(5px)} to{opacity:1;transform:none} }
+@media(max-width:767px) {
+ .pf-app header>div { height:74px; gap:8px; padding:0 12px; }
+ .pf-app header>div>div:last-child { gap:5px; }
+ .pf-app header>div>div:last-child>button:last-child span { display:none; }
+ .pf-app header>div>div:first-child span[class*="uppercase"] { display:none; }
+ .pf-app header>div>div:first-child { gap:4px; }
+ .pf-app header>div>div:last-child>button { padding:8px; }
+ .pf-workspace aside { top:74px; max-width:85vw; }
+ .pf-tabs { width:100%; gap:0; }
+ .pf-tabs button { padding:10px; font-size:11px; }
+ .pf-app .prose { font-size:14px; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .pf-app *, .pf-app *::before, .pf-app *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}
+
+.pf-app [class*="bg-gray-950"] { background-color:var(--pf-surface); }
+
+.pf-app [class*="bg-gray-900"] { background-color:var(--pf-surface); }
+
+.pf-app [class*="bg-gray-800"] { background-color:var(--pf-soft); }
+
+.pf-app [class*="bg-gray-750"] { background-color:var(--pf-soft); }
+
+.pf-app [class*="bg-gray-700"] { background-color:var(--pf-soft); }
+.pf-app [class~="text-gray-100"] { color:var(--pf-ink); }
+.pf-app [class~="text-gray-200"] { color:var(--pf-ink); }
+.pf-app [class~="text-gray-300"] { color:var(--pf-muted); }
+.pf-app [class~="text-gray-400"] { color:var(--pf-muted); }
+.pf-app [class~="text-gray-500"] { color:var(--pf-muted); }
+.pf-app [class*="border-gray-600"] { border-color:var(--pf-border); }
+.pf-app [class*="border-gray-700"] { border-color:var(--pf-border); }
+.pf-app [class*="border-gray-800"] { border-color:var(--pf-border); }
+
+.pf-app [class*="bg-slate-950"] { background-color:var(--pf-surface); }
+
+.pf-app [class*="bg-slate-900"] { background-color:var(--pf-surface); }
+
+.pf-app [class*="bg-slate-800"] { background-color:var(--pf-soft); }
+
+.pf-app [class*="bg-slate-750"] { background-color:var(--pf-soft); }
+
+.pf-app [class*="bg-slate-700"] { background-color:var(--pf-soft); }
+.pf-app [class~="text-slate-100"] { color:var(--pf-ink); }
+.pf-app [class~="text-slate-200"] { color:var(--pf-ink); }
+.pf-app [class~="text-slate-300"] { color:var(--pf-muted); }
+.pf-app [class~="text-slate-400"] { color:var(--pf-muted); }
+.pf-app [class~="text-slate-500"] { color:var(--pf-muted); }
+.pf-app [class*="border-slate-600"] { border-color:var(--pf-border); }
+.pf-app [class*="border-slate-700"] { border-color:var(--pf-border); }
+.pf-app [class*="border-slate-800"] { border-color:var(--pf-border); }
+.pf-app .text-white { color:var(--pf-ink); }
+.pf-app .text-indigo-200 { color:#245ce1; }
+.pf-app .text-indigo-300 { color:#245ce1; }
+.pf-app .text-indigo-400 { color:#245ce1; }
+.pf-app .text-blue-200 { color:#245ce1; }
+.pf-app .text-blue-300 { color:#245ce1; }
+.pf-app .text-blue-400 { color:#245ce1; }
+.pf-app .text-purple-200 { color:#675381; }
+.pf-app .text-purple-300 { color:#675381; }
+.pf-app .text-purple-400 { color:#675381; }
+.pf-app .text-emerald-200 { color:#26704c; }
+.pf-app .text-emerald-300 { color:#26704c; }
+.pf-app .text-emerald-400 { color:#26704c; }
+.pf-app .text-green-200 { color:#26704c; }
+.pf-app .text-green-300 { color:#26704c; }
+.pf-app .text-green-400 { color:#26704c; }
+.pf-app .text-amber-200 { color:#946007; }
+.pf-app .text-amber-300 { color:#946007; }
+.pf-app .text-amber-400 { color:#946007; }
+.pf-app .text-yellow-200 { color:#946007; }
+.pf-app .text-yellow-300 { color:#946007; }
+.pf-app .text-yellow-400 { color:#946007; }
+.pf-app .text-rose-200 { color:#b63749; }
+.pf-app .text-rose-300 { color:#b63749; }
+.pf-app .text-rose-400 { color:#b63749; }
+.pf-app .text-red-200 { color:#b63749; }
+.pf-app .text-red-300 { color:#b63749; }
+.pf-app .text-red-400 { color:#b63749; }
+.pf-app .text-cyan-200 { color:#246d7b; }
+.pf-app .text-cyan-300 { color:#246d7b; }
+.pf-app .text-cyan-400 { color:#246d7b; }
+
+.pf-app button[class*="bg-gradient-"], .pf-app button[class*="bg-gradient-"] .text-white { color:#fff; }
+.pf-app .pf-tabs button[class*="bg-gradient-"] { color:var(--pf-accent); }
+.pf-app [class*="hover:bg-gray-"]:hover { background-color:#e7ece4; }
+.pf-app [class*="hover:text-white"]:hover { color:var(--pf-accent); }
+.pf-app.pf-app { background:var(--pf-canvas); color:var(--pf-ink); }
+.pf-app .pf-workspace aside { background:var(--pf-soft); }
+.pf-app [class*="bg-indigo-950"], .pf-app [class*="bg-indigo-600/"], .pf-app [class*="bg-indigo-500/"] { background-color:#e8eefb; }
+.pf-app [class*="bg-emerald-950"], .pf-app [class*="bg-green-950"] { background-color:#edf5ee; }
+.pf-app [class*="bg-rose-950"], .pf-app [class*="bg-red-950"] { background-color:#fff0f0; }
+.pf-app button.bg-indigo-600, .pf-app button.bg-blue-600 { background:var(--pf-accent); color:white; }
+.pf-app [class*="bg-gradient-"][style*="width"] { background:#789c8c; }
+.pf-app .prose table { display:block; overflow-x:auto; }
+@media(max-width:767px) {
+ .pf-app header>div>div:last-child>button span { display:none; }
+ .pf-app header>div>div:first-child .font-bold { font-size:16px; }
+ .pf-app header>div>div:first-child .w-9 { width:28px; height:28px; }
+}
