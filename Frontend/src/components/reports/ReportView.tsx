@@ -14,14 +14,12 @@ import {
   FileText,
   Quote,
   Sparkles,
-  Award,
   Loader2,
   Table as TableIcon,
-  Edit3,
-  Send,
+
 } from 'lucide-react';
 import type { Session, Report, Citation } from '../../types';
-import { ReviewScorecard } from './ReviewScorecard';
+// import { ReviewScorecard } from './ReviewScorecard';
 import { CitationListModal } from './CitationListModal';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
@@ -32,7 +30,7 @@ interface ReportViewProps {
   citations: Citation[];
   onExport: (format: 'markdown' | 'docx' | 'pdf') => Promise<void>;
   onTriggerWorkflow: () => void;
-  onRevise?: (feedback: string) => Promise<void>;
+  // onRevise?: (feedback: string) => Promise<void>;
 }
 
 export const ReportView: React.FC<ReportViewProps> = ({
@@ -40,28 +38,28 @@ export const ReportView: React.FC<ReportViewProps> = ({
   citations,
   onExport,
   onTriggerWorkflow,
-  onRevise,
+  // onRevise,
 }) => {
   const { t } = useI18n();
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
   // const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review' | 'revise'>('content');
   const [activeTab, setActiveTab] = useState<'content' | 'matrix'>('content');
-  const [feedbackInput, setFeedbackInput] = useState('');
-  const [isRevising, setIsRevising] = useState(false);
+  // const [feedbackInput, setFeedbackInput] = useState('');
+  // const [isRevising, setIsRevising] = useState(false);
 
-  const handleRevise = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!feedbackInput.trim() || !onRevise) return;
-    setIsRevising(true);
-    try {
-      await onRevise(feedbackInput.trim());
-      setFeedbackInput('');
-      setActiveTab('content');
-    } finally {
-      setIsRevising(false);
-    }
-  };
+  // const handleRevise = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   if (!feedbackInput.trim() || !onRevise) return;
+  //   setIsRevising(true);
+  //   try {
+  //     await onRevise(feedbackInput.trim());
+  //     setFeedbackInput('');
+  //     setActiveTab('content');
+  //   } finally {
+  //     setIsRevising(false);
+  //   }
+  // };
 
 
   const handleExport = async (fmt: 'markdown' | 'docx' | 'pdf') => {
@@ -96,7 +94,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
     );
   }
 
-  const latestReview = report.reviews && report.reviews.length > 0 ? report.reviews[0] : undefined;
+  // const latestReview = report.reviews && report.reviews.length > 0 ? report.reviews[0] : undefined;
 
   return (
     <div className="space-y-6">
