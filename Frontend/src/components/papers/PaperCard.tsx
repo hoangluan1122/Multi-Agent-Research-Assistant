@@ -19,6 +19,7 @@ import {
 import type { Paper } from '../../types';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
+import { getDirectPaperUrl, isPdfUrl } from '../../utils/paperUrl';
 
 interface PaperCardProps {
   paper: Paper;
@@ -60,6 +61,10 @@ export const PaperCard: React.FC<PaperCardProps> = ({
     }
   };
 
+  // @trace: REQ-023
+  const directUrl = getDirectPaperUrl(paper);
+  const isPdf = isPdfUrl(directUrl);
+
   return (
     <div
       className={`relative p-5 rounded-2xl border transition-all flex flex-col justify-between gap-4 ${
@@ -98,9 +103,24 @@ export const PaperCard: React.FC<PaperCardProps> = ({
         </div>
 
         {/* Title */}
-        <h4 className="text-sm font-bold text-gray-100 line-clamp-2 leading-snug">
-          {paper.title}
-        </h4>
+        {directUrl && directUrl !== '#' ? (
+          <a
+            href={directUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="group block"
+            title={isPdf ? t.readDirectPdf : t.openOriginalLink}
+          >
+            <h4 className="text-sm font-bold text-gray-100 group-hover:text-indigo-300 group-hover:underline transition-colors line-clamp-2 leading-snug flex items-start gap-1.5">
+              <span>{paper.title}</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 text-indigo-400 transition-opacity shrink-0 mt-0.5" />
+            </h4>
+          </a>
+        ) : (
+          <h4 className="text-sm font-bold text-gray-100 line-clamp-2 leading-snug">
+            {paper.title}
+          </h4>
+        )}
 
         {/* Authors & Venue */}
         <p className="text-[11px] text-gray-400 line-clamp-1">
@@ -154,15 +174,21 @@ export const PaperCard: React.FC<PaperCardProps> = ({
             <span>{t.viewAnalysisBtn}</span>
           </button>
 
-          {paper.url && (
+          {/* @trace: REQ-023 */}
+          {directUrl && directUrl !== '#' && (
             <a
-              href={paper.url}
+              href={directUrl}
               target="_blank"
               rel="noreferrer"
-              className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
-              title={t.openOriginalLink}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border font-medium text-xs transition-colors ${
+                isPdf
+                  ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-rose-200 border-rose-500/30'
+                  : 'bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-300 hover:text-indigo-200 border-indigo-500/30'
+              }`}
+              title={isPdf ? t.readDirectPdf : t.openOriginalLink}
             >
-              <ExternalLink className="w-4 h-4" />
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>{isPdf ? t.readDirectPdf : t.openOriginalLink}</span>
             </a>
           )}
         </div>

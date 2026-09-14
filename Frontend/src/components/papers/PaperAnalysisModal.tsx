@@ -14,6 +14,7 @@ import type { Paper } from '../../types';
 import { Badge } from '../common/Badge';
 import { BookOpen, Cpu, Database, Award, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
 import { useI18n } from '../../i18n/context';
+import { getDirectPaperUrl, isPdfUrl } from '../../utils/paperUrl';
 
 interface PaperAnalysisModalProps {
   paper: Paper | null;
@@ -30,6 +31,9 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
   if (!paper) return null;
 
   const analysis = paper.analysis;
+  // @trace: REQ-023
+  const directUrl = getDirectPaperUrl(paper);
+  const isPdf = isPdfUrl(directUrl);
 
   return (
     <Modal
@@ -56,14 +60,19 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
 
           <div className="flex items-center gap-2">
             <Badge variant="primary">{t.relevanceLabel} {(paper.relevance_score * 100).toFixed(0)}%</Badge>
-            {paper.url && (
+            {directUrl && directUrl !== '#' && (
               <a
-                href={paper.url}
+                href={directUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 font-medium transition-colors"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium text-xs transition-colors ${
+                  isPdf
+                    ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-rose-200 border-rose-500/30'
+                    : 'bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30'
+                }`}
+                title={isPdf ? t.readDirectPdf : t.viewOriginalPaper}
               >
-                <span>{t.viewOriginalPaper}</span>
+                <span>{isPdf ? t.readDirectPdf : t.viewOriginalPaper}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}

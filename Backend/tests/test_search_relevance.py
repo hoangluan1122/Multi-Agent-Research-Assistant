@@ -161,4 +161,25 @@ def test_money_query_filters_prostate_papers():
     assert any("tiền gửi" in t for t in titles)
 
 
+# @trace: REQ-023
+def test_arxiv_parser_converts_abstract_to_direct_pdf_url():
+    service = AcademicSearchService()
+    sample_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <entry>
+        <id>http://arxiv.org/abs/2409.16098v2</id>
+        <title>The Digital Transformation in Health</title>
+        <summary>Mobile health has the potential to revolutionize healthcare.</summary>
+        <published>2024-09-24T13:52:15Z</published>
+        <author><name>África Periáñez</name></author>
+      </entry>
+    </feed>"""
+    papers = service._parse_arxiv_xml(sample_xml)
+    assert len(papers) == 1
+    paper = papers[0]
+    assert paper["url"] == "https://arxiv.org/pdf/2409.16098v2.pdf"
+    assert paper["pdf_path"] == "https://arxiv.org/pdf/2409.16098v2.pdf"
+
+
+
 

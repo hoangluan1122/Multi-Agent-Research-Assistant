@@ -163,17 +163,25 @@ class AcademicSearchService:
                 published_elem = entry.find("atom:published", ns)
                 year = int(published_elem.text[:4]) if published_elem is not None else 2024
 
-                # Trích xuất liên kết
+                # @trace: REQ-023
+                # Trích xuất liên kết và tạo URL đọc trực tiếp PDF toàn văn
                 id_elem = entry.find("atom:id", ns)
-                url = id_elem.text.strip() if id_elem is not None else ""
+                raw_url = id_elem.text.strip() if id_elem is not None else ""
+                url_https = raw_url.replace("http://", "https://")
+
+                # Chuyển đổi arxiv.org/abs/xxx thành https://arxiv.org/pdf/xxx.pdf
+                if "abs" in url_https:
+                    pdf_url = url_https.replace("/abs/", "/pdf/")
+                    if not pdf_url.endswith(".pdf"):
+                        pdf_url = f"{pdf_url}.pdf"
+                else:
+                    pdf_url = url_https
 
                 # Trích xuất DOI nếu có
                 doi = None
                 doi_elem = entry.find("{http://arxiv.org/schemas/atom}doi")
                 if doi_elem is not None:
                     doi = doi_elem.text.strip()
-
-                pdf_url = url.replace("abs", "pdf") if "abs" in url else url
 
                 papers.append({
                     "title": title,
@@ -182,7 +190,7 @@ class AcademicSearchService:
                     "year": year,
                     "venue": "arXiv",
                     "doi": doi,
-                    "url": url,
+                    "url": pdf_url or url_https,
                     "pdf_path": pdf_url,
                     "source": "arxiv",
                     "relevance_score": 0.95
@@ -366,9 +374,15 @@ class AcademicSearchService:
                         if year_end and year > year_end:
                             continue
 
+                        # @trace: REQ-023
                         # DOI & Direct Publisher URL: https://doi.org/{doi} trỏ thẳng đến trang nhà xuất bản
                         doi = item.get("doi")
                         pmid = item.get("pmid")
+                        pmcid = item.get("pmcid")
+                        pdf_path = None
+                        if pmcid:
+                            pdf_path = f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmcid}&blobtype=pdf"
+
                         if doi:
                             direct_url = f"https://doi.org/{doi}"
                         elif pmid:
@@ -392,7 +406,7 @@ class AcademicSearchService:
                             "venue": venue,
                             "doi": doi,
                             "url": direct_url,
-                            "pdf_path": None,
+                            "pdf_path": pdf_path,
                             "source": "europe_pmc",
                             "relevance_score": 0.95
                         })
