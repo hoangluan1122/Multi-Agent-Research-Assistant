@@ -4,11 +4,12 @@ Cung cấp các API RESTful cho phép khởi tạo, tra cứu, chỉnh sửa và
 """
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, or_
 from sqlalchemy.orm import selectinload
 from app.db.session import get_db
+from app.core.config import settings
 from app.models.session import ResearchSession
 from app.models.paper import Paper
 from app.models.report import Report
@@ -23,18 +24,89 @@ from app.schemas.session import (
 
 router = APIRouter(prefix="/sessions", tags=["Sessions (UC001)"])
 
-# @trace: REQ-001, REQ-002
+# @trace: REQ-008
+@router.get("/guest/quota")
+async def get_guest_quota(
+    request: Request,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    REQ-008: Kiểm tra hạn mức lượt dùng thử còn lại của khách.
+    Nếu đã đăng nhập: Trả về is_logged_in=True (không giới hạn).
+    """
+    if current_user:
+        return {
+            "is_logged_in": True,
+            "used": 0,
+            "max": settings.GUEST_MAX_SESSIONS,
+            "remaining": 999999,
+            "is_exceeded": False
+        }
+    
+    forwarded = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+    if forwarded:
+        client_ip = forwarded.split(",")[0].strip()
+    elif request.client:
+        client_ip = request.client.host
+    else:
+        client_ip = "127.0.0.1"
+
+    stmt = select(func.count(ResearchSession.id)).where(
+        ResearchSession.user_id.is_(None),
+        ResearchSession.client_ip == client_ip
+    )
+    res = await db.execute(stmt)
+    used = res.scalar() or 0
+    remaining = max(0, settings.GUEST_MAX_SESSIONS - used)
+
+    return {
+        "is_logged_in": False,
+        "used": used,
+        "max": settings.GUEST_MAX_SESSIONS,
+        "remaining": remaining,
+        "is_exceeded": used >= settings.GUEST_MAX_SESSIONS
+    }
+
+# @trace: REQ-001, REQ-002, REQ-008
 @router.post("", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_session(
     payload: SessionCreate,
+    request: Request,
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     UC001: Khởi tạo phiên nghiên cứu khoa học mới.
     - Nhận chủ đề (topic), câu hỏi nghiên cứu (research_question) và các tham số giới hạn.
+    - REQ-008: Kiểm soát hạn mức 2 phiên trải nghiệm cho khách vãng lai (Guest Mode).
     - Tự động liên kết phiên với tài khoản người dùng nếu đã đăng nhập.
     """
+    client_ip = None
+    if not current_user:
+        # Trích xuất IP khách vãng lai từ header X-Forwarded-For hoặc client host
+        forwarded = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        elif request.client:
+            client_ip = request.client.host
+        else:
+            client_ip = "127.0.0.1"
+
+        # @trace: REQ-008 - Đếm số phiên khách đã tạo từ IP này
+        stmt = select(func.count(ResearchSession.id)).where(
+            ResearchSession.user_id.is_(None),
+            ResearchSession.client_ip == client_ip
+        )
+        res = await db.execute(stmt)
+        guest_session_count = res.scalar() or 0
+
+        if guest_session_count >= settings.GUEST_MAX_SESSIONS:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Chế độ khách đã dùng hết {settings.GUEST_MAX_SESSIONS} lượt nghiên cứu trải nghiệm miễn phí. Vui lòng đăng ký hoặc đăng nhập tài khoản để tiếp tục nghiên cứu không giới hạn."
+            )
+
     params = payload.parameters or {}
     params.update({
         "year_start": payload.year_start,
@@ -46,6 +118,7 @@ async def create_session(
 
     session = ResearchSession(
         user_id=current_user.id if current_user else None,
+        client_ip=client_ip,
         topic=payload.topic,
         research_question=payload.research_question,
         parameters=params,

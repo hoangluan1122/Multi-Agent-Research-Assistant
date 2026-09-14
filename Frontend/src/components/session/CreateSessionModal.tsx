@@ -10,19 +10,23 @@ import { Sparkles, Calendar, Layers, CheckSquare, Square, Loader2 } from 'lucide
 import { Modal } from '../common/Modal';
 import type { SessionCreate } from '../../types';
 import { useI18n } from '../../i18n/context';
+import { useAuth } from '../../context/AuthContext';
 
 interface CreateSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: SessionCreate) => Promise<void>;
+  onAuth?: () => void;
 }
 
 export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  onAuth,
 }) => {
   const { t } = useI18n();
+  const { user } = useAuth();
   const [topic, setTopic] = useState('');
   const [researchQuestion, setResearchQuestion] = useState('');
   const [yearStart, setYearStart] = useState<number>(2020);
@@ -75,6 +79,24 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
       maxWidth="2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {!user && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs text-amber-300">
+            <span>💡 <strong>Chế độ khách:</strong> Giới hạn tối đa 2 câu hỏi nghiên cứu trải nghiệm.</span>
+            {onAuth && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onAuth();
+                }}
+                className="text-indigo-400 hover:text-indigo-300 font-semibold underline ml-2 whitespace-nowrap"
+              >
+                Đăng nhập để không giới hạn
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Topic */}
         <div>
           <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">

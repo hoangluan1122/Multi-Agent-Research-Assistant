@@ -32,5 +32,11 @@ export const sessionService = {
   async deleteSession(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/sessions/${id}`);
   },
+
+  /** REQ-008: Kiểm tra hạn mức dùng thử còn lại của khách */
+  async getGuestQuota(): Promise<{ is_logged_in: boolean; used: number; max: number; remaining: number; is_exceeded: boolean }> {
+    const response = await apiClient.get('/api/v1/sessions/guest/quota');
+    return response.data;
+  },
 };
 

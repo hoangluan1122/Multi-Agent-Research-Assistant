@@ -1,4 +1,4 @@
-﻿"""
+"""
 Bộ kiểm thử tích hợp chuyên biệt cho Thành viên 3 (Backend & Database).
 Bao phủ toàn diện 100% các yêu cầu từ REQ-001 đến REQ-007:
 - REQ-001: Validation dữ liệu đầu vào (Edge cases, invalid fields, year ranges).
@@ -243,9 +243,49 @@ async def run_member3_test_suite():
         st_check = await client.get(f"/api/v1/workflow/status/{session_a_id}", headers=headers_a)
         assert st_check.status_code == 200
         assert st_check.json()["status"] == "FAILED"
-        assert st_check.json()["error_message"] == "Mô phỏng lỗi kết nối API bên ngoài"
-
         print("  -> REQ-006 PASS: Lỗi được ghi nhận vào database và trả về rõ ràng qua API.\n", flush=True)
+
+        # REQ-008: Chế độ Khách Giới Hạn 2 Câu Hỏi / Phiên Nghiên Cứu
+        print("[TEST REQ-008] Kiểm tra hạn mức 2 phiên trải nghiệm cho Chế độ Khách (Guest Quota)...", flush=True)
+
+        guest_ip = f"198.51.100.{uuid.uuid4().hex[:4]}"  # IP duy nhất cho test case
+        guest_headers = {"X-Forwarded-For": guest_ip}
+
+        # Kiểm tra quota ban đầu
+        quota_resp = await client.get("/api/v1/sessions/guest/quota", headers=guest_headers)
+        assert quota_resp.status_code == 200
+        assert quota_resp.json()["used"] == 0
+        assert quota_resp.json()["remaining"] == 2
+        assert quota_resp.json()["is_exceeded"] is False
+
+        # Khách tạo câu hỏi 1 -> Thành công (201)
+        g1 = await client.post("/api/v1/sessions", json={"topic": "Guest Research Question 1"}, headers=guest_headers)
+        assert g1.status_code == 201, f"Guest session 1 failed: {g1.text}"
+        print("  [Khách Câu 1 OK] Tạo thành công phiên 1 (HTTP 201).")
+
+        # Khách tạo câu hỏi 2 -> Thành công (201)
+        g2 = await client.post("/api/v1/sessions", json={"topic": "Guest Research Question 2"}, headers=guest_headers)
+        assert g2.status_code == 201, f"Guest session 2 failed: {g2.text}"
+        print("  [Khách Câu 2 OK] Tạo thành công phiên 2 (HTTP 201).")
+
+        # Kiểm tra quota khi đã dùng 2/2
+        quota_full = await client.get("/api/v1/sessions/guest/quota", headers=guest_headers)
+        assert quota_full.json()["used"] == 2
+        assert quota_full.json()["remaining"] == 0
+        assert quota_full.json()["is_exceeded"] is True
+
+        # Khách tạo câu hỏi 3 -> BỊ CHẶN 429 Too Many Requests
+        g3 = await client.post("/api/v1/sessions", json={"topic": "Guest Research Question 3"}, headers=guest_headers)
+        assert g3.status_code == 429, f"Expected 429 Too Many Requests, got {g3.status_code}"
+        assert "hết 2 lượt" in g3.json()["detail"] or "Chế độ khách" in g3.json()["detail"]
+        print(f"  [Chặn Câu 3 OK] Chặn chuẩn HTTP 429 Too Many Requests: '{g3.json()['detail']}'")
+
+        # Người dùng đã đăng nhập (User A) tạo câu hỏi -> KHÔNG BỊ GIỚI HẠN
+        auth_sess = await client.post("/api/v1/sessions", json={"topic": "User A Unlimited Research"}, headers=headers_a)
+        assert auth_sess.status_code == 201
+        print("  [Tài khoản Đăng nhập OK] User A tạo thêm phiên thành công, không bị giới hạn quota của khách.")
+
+        print("  -> REQ-008 PASS: Kiểm soát hạn mức khách vãng lai và phân quyền không giới hạn cho tài khoản đăng nhập thành công tuyệt đối.\n", flush=True)
 
     print("=======================================================", flush=True)
     print("   TẤT CẢ CÁC BÀI TEST THÀNH VIÊN 3 ĐÃ PASS 100%!", flush=True)

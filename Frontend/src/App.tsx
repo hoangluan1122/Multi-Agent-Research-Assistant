@@ -190,7 +190,7 @@ export function App() {
     };
   }, [activeSession, isWorkflowRunning, loadSessionDetails]);
 
-  // Handler: Create Session
+  // Handler: Create Session (REQ-008: Guest Quota Enforcement)
   const handleCreateSession = async (data: SessionCreate) => {
     try {
       const newSession = await sessionService.createSession(data);
@@ -199,7 +199,14 @@ export function App() {
       setActiveTab('workflow');
       addToast('success', `Đã khởi tạo phiên: "${newSession.topic}"`);
     } catch (err: any) {
-      addToast('error', `Tạo phiên thất bại: ${err.message}`);
+      const msg = err.message || '';
+      if (msg.includes('khách') || msg.includes('trải nghiệm') || msg.includes('429')) {
+        addToast('error', msg);
+        setIsCreateModalOpen(false);
+        setIsAuthOpen(true); // Tự động bật modal đăng nhập/đăng ký
+      } else {
+        addToast('error', `Tạo phiên thất bại: ${msg}`);
+      }
     }
   };
 
@@ -553,6 +560,7 @@ export function App() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateSession}
+        onAuth={() => setIsAuthOpen(true)}
       />
 
       <SettingsModal

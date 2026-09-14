@@ -23,6 +23,10 @@ class ResearchSession(Base):
     # Khóa ngoại liên kết với User (Nullable để tương thích với chế độ Khách / Guest)
     user_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
+    # @trace: REQ-008
+    # Địa chỉ IP của máy khách vãng lai (dùng để kiểm soát hạn mức lượt hỏi của khách)
+    client_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True, index=True)
+
     # Chủ đề nghiên cứu chính (Topic)
     topic: Mapped[str] = mapped_column(String(500), nullable=False)
     # Câu hỏi nghiên cứu chi tiết (Research Question)

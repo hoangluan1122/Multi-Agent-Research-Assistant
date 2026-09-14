@@ -40,22 +40,37 @@ async def init_db():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-        if "sqlite" in settings.DATABASE_URL:
-            async with engine.begin() as conn:
-                from sqlalchemy import text
-                try:
-                    await conn.execute(text("ALTER TABLE research_sessions ADD COLUMN user_id VARCHAR(36)"))
-                except Exception:
-                    pass
-                try:
-                    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON research_sessions (user_id)"))
-                except Exception:
-                    pass
-                try:
-                    await conn.execute(text("DELETE FROM reports WHERE id NOT IN (SELECT MIN(id) FROM reports GROUP BY session_id, version)"))
-                    await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_session_report_version ON reports (session_id, version)"))
-                except Exception:
-                    pass
+        # @trace: REQ-007, REQ-008
+        async with engine.begin() as conn:
+            from sqlalchemy import text
+            try:
+                if "postgresql" in settings.DATABASE_URL:
+                    await conn.execute(text("ALTER TABLE research_sessions ADD COLUMN IF NOT EXISTS client_ip VARCHAR(45)"))
+                    await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sessions_client_ip ON research_sessions (client_ip)"))
+                elif "sqlite" in settings.DATABASE_URL:
+                    try:
+                        await conn.execute(text("ALTER TABLE research_sessions ADD COLUMN client_ip VARCHAR(45)"))
+                    except Exception:
+                        pass
+                    try:
+                        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sessions_client_ip ON research_sessions (client_ip)"))
+                    except Exception:
+                        pass
+                    try:
+                        await conn.execute(text("ALTER TABLE research_sessions ADD COLUMN user_id VARCHAR(36)"))
+                    except Exception:
+                        pass
+                    try:
+                        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sessions_user_id ON research_sessions (user_id)"))
+                    except Exception:
+                        pass
+                    try:
+                        await conn.execute(text("DELETE FROM reports WHERE id NOT IN (SELECT MIN(id) FROM reports GROUP BY session_id, version)"))
+                        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_session_report_version ON reports (session_id, version)"))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
     except Exception as e:
         if "postgresql" in settings.DATABASE_URL:
             import logging

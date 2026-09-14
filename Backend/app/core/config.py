@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     MAX_REVIEW_RETRIES: int = 2     # Số lần thử viết lại tối đa nếu thẩm định chưa đạt
     UPLOAD_DIR: str = "./uploads"   # Thư mục lưu trữ tài liệu PDF tải lên
 
+    # @trace: REQ-008
+    GUEST_MAX_SESSIONS: int = 2     # Số lượt nghiên cứu tối đa dành cho khách vãng lai
+
 
 # Khởi tạo đối tượng cấu hình toàn cục
 settings = Settings()
