@@ -159,6 +159,7 @@ export interface Citation {
 
 // ==========================================
 // 5. System Config Types (Cấu hình hệ thống - UC013)
+// @trace: REQ-011, REQ-012
 // ==========================================
 export interface SystemConfig {
   project_name: string;
@@ -172,6 +173,7 @@ export interface SystemConfig {
   qdrant_use_memory: boolean;
   max_search_papers: number;
   max_review_retries: number;
+  use_system_key?: boolean;
 }
 
 export interface SystemConfigUpdate {
@@ -182,5 +184,7 @@ export interface SystemConfigUpdate {
   openai_base_url?: string;
   max_search_papers?: number;
   max_review_retries?: number;
+  use_system_default?: boolean;
 }
+
 

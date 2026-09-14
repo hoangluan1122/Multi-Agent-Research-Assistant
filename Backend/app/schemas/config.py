@@ -6,6 +6,7 @@ Pydantic Schemas cấu hình hệ thống (System Config).
 from typing import Optional, List
 from pydantic import BaseModel
 
+# @trace: REQ-012
 class SystemConfigResponse(BaseModel):
     """Schema dữ liệu trả về thông tin cấu hình hiện tại của hệ thống (ẩn các API key nhạy cảm)."""
     project_name: str
@@ -19,7 +20,9 @@ class SystemConfigResponse(BaseModel):
     qdrant_use_memory: bool
     max_search_papers: int
     max_review_retries: int
+    use_system_key: bool = True
 
+# @trace: REQ-012
 class SystemConfigUpdate(BaseModel):
     """Schema dữ liệu cập nhật cấu hình hệ thống động trong lúc chạy."""
     llm_provider: Optional[str] = None
@@ -29,4 +32,5 @@ class SystemConfigUpdate(BaseModel):
     openai_base_url: Optional[str] = None
     max_search_papers: Optional[int] = None
     max_review_retries: Optional[int] = None
+    use_system_default: Optional[bool] = None
 

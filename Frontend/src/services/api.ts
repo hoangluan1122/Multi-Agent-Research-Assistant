@@ -25,16 +25,29 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// @trace: REQ-011
 // Interceptor xử lý phản hồi và trích xuất thông điệp lỗi chi tiết từ FastAPI backend
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message =
-      error.response?.data?.detail ||
-      error.message ||
-      'Đã xảy ra lỗi không xác định';
+    let message = 'Đã xảy ra lỗi không xác định';
+    const detail = error.response?.data?.detail;
+
+    if (typeof detail === 'string') {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = detail
+        .map((d: any) => (typeof d === 'object' && d ? d.msg || d.message || JSON.stringify(d) : String(d)))
+        .join('; ');
+    } else if (detail && typeof detail === 'object') {
+      message = detail.msg || detail.message || JSON.stringify(detail);
+    } else if (error.message) {
+      message = error.message;
+    }
+
     console.error('API Error:', message, error);
     return Promise.reject(new Error(message));
   }
 );
+
 

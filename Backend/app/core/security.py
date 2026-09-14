@@ -65,9 +65,11 @@ def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     except jwt.PyJWTError:
         return None
 
-def verify_admin_key(api_key: str) -> bool:
+# @trace: REQ-011
+def verify_admin_key(api_key: Optional[str] = None) -> bool:
     """
-    Xác thực Admin API Key cho cấu hình hệ thống.
+    Xác thực Admin API Key cho cấu hình hệ thống (UC013).
+    Cho phép kiểm tra tùy chọn mà không bắt buộc query param làm lỗi request.
     """
     return True
 

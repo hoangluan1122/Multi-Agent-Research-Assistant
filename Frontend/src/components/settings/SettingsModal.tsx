@@ -1,7 +1,8 @@
+// @trace: REQ-011, REQ-012
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import type { SystemConfig, SystemConfigUpdate } from '../../types';
-import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages } from 'lucide-react';
+import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck } from 'lucide-react';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
 
@@ -21,6 +22,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onTestLlm,
 }) => {
   const { language, setLanguage, t } = useI18n();
+
+  // @trace: REQ-012: Chế độ API ('system' = API Web có sẵn, 'custom' = API cá nhân)
+  const [apiMode, setApiMode] = useState<'system' | 'custom'>('system');
   const [provider, setProvider] = useState<string>('gemini');
   const [model, setModel] = useState<string>('gemini-2.5-flash');
   const [geminiKey, setGeminiKey] = useState<string>('');
@@ -35,6 +39,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   useEffect(() => {
     if (config) {
+      // Xác định chế độ đang dùng từ backend hoặc localStorage
+      const savedMode = localStorage.getItem('paperflow_api_mode');
+      if (config.use_system_key === false || savedMode === 'custom') {
+        setApiMode('custom');
+      } else {
+        setApiMode('system');
+      }
+
       setProvider(config.llm_provider || 'gemini');
       setModel(config.default_model || 'gemini-2.5-flash');
       setMaxSearch(config.max_search_papers || 10);
@@ -58,19 +70,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  // @trace: REQ-011, REQ-012
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave({
-        llm_provider: provider,
-        default_model: model,
-        gemini_api_key: geminiKey.trim() || undefined,
-        openai_api_key: openaiKey.trim() || undefined,
-        openai_base_url: openaiBaseUrl.trim() || undefined,
-        max_search_papers: Number(maxSearch),
-        max_review_retries: Number(maxRetries),
-      });
+      if (apiMode === 'system') {
+        // Lưu cấu hình sử dụng API mặc định của Web
+        await onSave({
+          use_system_default: true,
+          llm_provider: provider,
+          default_model: model,
+          max_search_papers: Number(maxSearch),
+          max_review_retries: Number(maxRetries),
+        });
+        localStorage.setItem('paperflow_api_mode', 'system');
+      } else {
+        // Lưu cấu hình sử dụng API cá nhân của người dùng
+        await onSave({
+          use_system_default: false,
+          llm_provider: provider,
+          default_model: model,
+          gemini_api_key: provider === 'gemini' ? (geminiKey.trim() || undefined) : undefined,
+          openai_api_key: provider !== 'gemini' ? (openaiKey.trim() || undefined) : undefined,
+          openai_base_url: (provider === 'groq' || provider === 'openrouter') ? (openaiBaseUrl.trim() || undefined) : undefined,
+          max_search_papers: Number(maxSearch),
+          max_review_retries: Number(maxRetries),
+        });
+        localStorage.setItem('paperflow_api_mode', 'custom');
+      }
       onClose();
     } finally {
       setSaving(false);
@@ -117,115 +145,223 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
 
-        {/* Provider Selection */}
+        {/* @trace: REQ-012: Chọn Chế độ Nguồn API (Web Default vs Custom API) */}
         <div>
           <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> {t.providerLabel}
+            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> {t.apiSourceModeLabel}
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {[
-              { id: 'gemini', label: 'Google Gemini' },
-              { id: 'openai', label: 'OpenAI' },
-              { id: 'groq', label: 'Groq Cloud' },
-              { id: 'openrouter', label: 'OpenRouter' },
-            ].map((p) => (
-              <button
-                type="button"
-                key={p.id}
-                onClick={() => {
-                  setProvider(p.id);
-                  if (p.id === 'gemini') setModel('gemini-2.5-flash');
-                  if (p.id === 'openai') setModel('gpt-4o-mini');
-                  if (p.id === 'groq') setModel('llama-3.3-70b-versatile');
-                  if (p.id === 'openrouter') setModel('deepseek/deepseek-chat');
-                }}
-                className={`p-2.5 rounded-xl border font-semibold text-center transition-all ${
-                  provider === p.id
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
-                    : 'bg-gray-800/40 border-gray-700/60 text-gray-300 hover:bg-gray-800'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Chế độ 1: API Mặc định của Web */}
+            <div
+              onClick={() => {
+                setApiMode('system');
+                setProvider('gemini');
+                setModel('gemini-2.5-flash');
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                apiMode === 'system'
+                  ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50 shadow-lg shadow-indigo-900/20'
+                  : 'bg-gray-800/30 border-gray-700/60 text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-[13px] flex items-center gap-1.5 text-indigo-200">
+                    <Globe className="w-4 h-4 text-indigo-400" /> {t.apiModeSystem}
+                  </span>
+                  <Badge variant="success">Miễn phí</Badge>
+                </div>
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  {t.apiModeSystemDesc}
+                </p>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-gray-700/50 flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Không cần cấu hình khóa API riêng</span>
+              </div>
+            </div>
+
+            {/* Chế độ 2: API Cá nhân tự cấu hình */}
+            <div
+              onClick={() => {
+                setApiMode('custom');
+              }}
+              className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                apiMode === 'custom'
+                  ? 'bg-indigo-950/40 border-indigo-500 text-white ring-1 ring-indigo-500/50 shadow-lg shadow-indigo-900/20'
+                  : 'bg-gray-800/30 border-gray-700/60 text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-[13px] flex items-center gap-1.5 text-indigo-200">
+                    <Key className="w-4 h-4 text-indigo-400" /> {t.apiModeCustom}
+                  </span>
+                  <Badge variant="info">Tùy biến</Badge>
+                </div>
+                <p className="text-[11px] text-gray-300 leading-relaxed">
+                  {t.apiModeCustomDesc}
+                </p>
+              </div>
+              <div className="mt-2.5 pt-2 border-t border-gray-700/50 flex items-center gap-1 text-[10px] text-indigo-400 font-medium">
+                <Cpu className="w-3 h-3" />
+                <span>Hỗ trợ Gemini, OpenAI, Groq, OpenRouter</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Model Name */}
-        <div>
-          <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
-            {t.defaultModelLabel}
-          </label>
-          <input
-            type="text"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="Ví dụ: gemini-2.5-flash hoặc gpt-4o-mini"
-            className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-          />
-        </div>
-
-        {/* API Keys */}
-        <div className="space-y-3 pt-1">
-          {provider === 'gemini' ? (
+        {/* Nội dung cấu hình theo Chế độ được chọn */}
+        {apiMode === 'system' ? (
+          /* Chế độ API Mặc định của Web */
+          <div className="p-3.5 rounded-xl bg-gradient-to-br from-indigo-950/30 via-gray-800/40 to-gray-900/50 border border-indigo-500/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-gray-200 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                Mô hình AI máy chủ phục vụ
+              </span>
+              <Badge variant="success">Hệ thống kích hoạt sẵn</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {[
+                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Mặc định - Cực nhanh' },
+                { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', tag: 'Mô hình AI mới' },
+                { id: 'gpt-4o-mini', label: 'GPT-4o Mini', tag: 'OpenAI Fallback' },
+              ].map((m) => (
+                <button
+                  type="button"
+                  key={m.id}
+                  onClick={() => {
+                    setModel(m.id);
+                    if (m.id.startsWith('gemini')) setProvider('gemini');
+                    else setProvider('openai');
+                  }}
+                  className={`p-2 rounded-lg border text-left transition-all ${
+                    model === m.id
+                      ? 'bg-indigo-600/40 border-indigo-400 text-white shadow-sm'
+                      : 'bg-gray-800/60 border-gray-700/60 text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <div className="font-semibold text-[11px] text-white">{m.label}</div>
+                  <div className="text-[10px] text-indigo-300">{m.tag}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          /* Chế độ API Cá nhân */
+          <div className="space-y-3 p-3.5 rounded-xl bg-gray-900/60 border border-gray-700/60">
+            {/* Provider Selection */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="font-semibold text-gray-300 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
-                </label>
-                {config?.has_gemini_key && (
-                  <Badge variant="success">{t.keyConfiguredEnv}</Badge>
-                )}
+              <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-400" /> {t.providerLabel}
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'gemini', label: 'Google Gemini' },
+                  { id: 'openai', label: 'OpenAI' },
+                  { id: 'groq', label: 'Groq Cloud' },
+                  { id: 'openrouter', label: 'OpenRouter' },
+                ].map((p) => (
+                  <button
+                    type="button"
+                    key={p.id}
+                    onClick={() => {
+                      setProvider(p.id);
+                      if (p.id === 'gemini') setModel('gemini-2.5-flash');
+                      if (p.id === 'openai') setModel('gpt-4o-mini');
+                      if (p.id === 'groq') setModel('llama-3.3-70b-versatile');
+                      if (p.id === 'openrouter') setModel('deepseek/deepseek-chat');
+                    }}
+                    className={`p-2.5 rounded-xl border font-semibold text-center transition-all ${
+                      provider === p.id
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                        : 'bg-gray-800/40 border-gray-700/60 text-gray-300 hover:bg-gray-800'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
+            </div>
+
+            {/* Model Name */}
+            <div>
+              <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
+                {t.defaultModelLabel}
+              </label>
               <input
-                type="password"
-                value={geminiKey}
-                onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder={t.geminiKeyPlaceholder}
+                type="text"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="Ví dụ: gemini-2.5-flash, gpt-4o, llama-3.3-70b-versatile"
                 className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
               />
             </div>
-          ) : (
-            <div className="space-y-2">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="font-semibold text-gray-300 flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.apiKeyLabel} ({provider.toUpperCase()})
-                  </label>
-                  {config?.has_openai_key && (
-                    <Badge variant="success">{t.keyConfigured}</Badge>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={openaiKey}
-                  onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder={t.apiKeyPlaceholder}
-                  className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-                />
-              </div>
 
-              {(provider === 'groq' || provider === 'openrouter') && (
+            {/* API Keys */}
+            <div className="space-y-3 pt-1">
+              {provider === 'gemini' ? (
                 <div>
-                  <label className="font-semibold text-gray-400 mb-1 block">
-                    {t.customBaseUrl}
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
+                    </label>
+                    {config?.has_gemini_key && (
+                      <Badge variant="success">{t.keyConfiguredEnv}</Badge>
+                    )}
+                  </div>
                   <input
-                    type="text"
-                    value={openaiBaseUrl}
-                    onChange={(e) => setOpenaiBaseUrl(e.target.value)}
-                    placeholder={
-                      provider === 'groq'
-                        ? 'https://api.groq.com/openai/v1'
-                        : 'https://openrouter.ai/api/v1'
-                    }
-                    className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-[11px]"
+                    type="password"
+                    value={geminiKey}
+                    onChange={(e) => setGeminiKey(e.target.value)}
+                    placeholder={t.geminiKeyPlaceholder}
+                    className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
                   />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+                        <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.apiKeyLabel} ({provider.toUpperCase()})
+                      </label>
+                      {config?.has_openai_key && (
+                        <Badge variant="success">{t.keyConfigured}</Badge>
+                      )}
+                    </div>
+                    <input
+                      type="password"
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
+                      placeholder={t.apiKeyPlaceholder}
+                      className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  {(provider === 'groq' || provider === 'openrouter') && (
+                    <div>
+                      <label className="font-semibold text-gray-400 mb-1 block">
+                        {t.customBaseUrl}
+                      </label>
+                      <input
+                        type="text"
+                        value={openaiBaseUrl}
+                        onChange={(e) => setOpenaiBaseUrl(e.target.value)}
+                        placeholder={
+                          provider === 'groq'
+                            ? 'https://api.groq.com/openai/v1'
+                            : 'https://openrouter.ai/api/v1'
+                        }
+                        className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-[11px]"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Vector DB Status */}
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 flex items-center justify-between">

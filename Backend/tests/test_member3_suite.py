@@ -312,6 +312,45 @@ async def run_member3_test_suite():
 
         print("  -> REQ-009 PASS: Phân lập tuyệt đối lịch sử nghiên cứu của từng tài khoản thành công 100%.\n", flush=True)
 
+        # REQ-011 & REQ-012: Lưu Cấu Hình Không Lỗi 422 & Chuyển Đổi API Web vs API Cá Nhân
+        print("[TEST REQ-011 & REQ-012] Kiểm tra lưu cài đặt không lỗi 422 và chuyển đổi API Web vs API Cá Nhân...", flush=True)
+
+        # 1. GET /api/v1/config -> Trả về cấu hình ban đầu
+        cfg_resp = await client.get("/api/v1/config")
+        assert cfg_resp.status_code == 200
+        cfg_data = cfg_resp.json()
+        assert "use_system_key" in cfg_data
+        print(f"  [GET Config OK] Mô hình mặc định: {cfg_data['default_model']}, use_system_key: {cfg_data['use_system_key']}")
+
+        # 2. REQ-011: PUT /api/v1/config KHÔNG CẦN query param ?api_key=... -> Không bị lỗi 422
+        update_custom = await client.put("/api/v1/config", json={
+            "llm_provider": "openai",
+            "default_model": "gpt-4o-mini",
+            "openai_api_key": "sk-test-custom-openai-key-paperflow",
+            "use_system_default": False
+        })
+        assert update_custom.status_code == 200, f"REQ-011 FAILED: PUT /api/v1/config returned {update_custom.status_code} {update_custom.text}"
+        updated_data = update_custom.json()
+        assert updated_data["llm_provider"] == "openai"
+        assert updated_data["default_model"] == "gpt-4o-mini"
+        assert updated_data["use_system_key"] is False
+        print("  [REQ-011 OK] Lưu cài đặt thành công không cần query api_key, không lỗi 422 [object Object].")
+        print("  [REQ-012 Cá Nhân OK] Kích hoạt API Cá Nhân thành công (use_system_key = False).")
+
+        # 3. REQ-012: Chuyển lại về "API mặc định của Web"
+        update_system = await client.put("/api/v1/config", json={
+            "use_system_default": True,
+            "llm_provider": "gemini",
+            "default_model": "gemini-2.5-flash"
+        })
+        assert update_system.status_code == 200
+        sys_data = update_system.json()
+        assert sys_data["use_system_key"] is True
+        assert sys_data["llm_provider"] == "gemini"
+        assert sys_data["default_model"] == "gemini-2.5-flash"
+        print("  [REQ-012 Web OK] Chuyển đổi về API mặc định của Web thành công (use_system_key = True).")
+        print("  -> REQ-011 & REQ-012 PASS: Sửa triệt để lỗi lưu cài đặt và hoàn thiện cơ chế chọn API Web vs Cá Nhân 100%.\n", flush=True)
+
     print("=======================================================", flush=True)
     print("   TẤT CẢ CÁC BÀI TEST THÀNH VIÊN 3 ĐÃ PASS 100%!", flush=True)
     print("=======================================================\n", flush=True)
