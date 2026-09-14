@@ -1,3 +1,4 @@
+import pytest
 from app.services.academic_search import AcademicSearchService
 from app.services.llm_service import LLMService
 
@@ -84,11 +85,25 @@ def test_fallback_papers_generates_exact_count_and_safe_urls():
     count_8 = service._generate_fallback_papers("smartphone screen time", count=8)
     assert len(count_8) == 8, f"Expected 8 papers, got {len(count_8)}"
 
-    # Ensure URLs are valid search URLs and DO NOT link to the unrelated finance paper 2401.00001
+    # Ensure URLs are valid search URLs, DO NOT link to finance paper 2401.00001, and NEVER use Google Scholar (captcha risk)
     for p in count_5:
         assert "2401.00001" not in p["url"]
-        assert "scholar.google.com" in p["url"] or "arxiv.org/search" in p["url"]
+        assert "scholar.google.com" not in p["url"]
+        assert any(domain in p["url"] for domain in ["semanticscholar.org", "pubmed.ncbi.nlm.nih.gov", "arxiv.org"])
         assert "smartphone" in p["url"] or "screen" in p["url"]
+
+
+# @trace: REQ-020, REQ-021
+@pytest.mark.asyncio
+async def test_europe_pmc_returns_direct_doi_urls():
+    service = AcademicSearchService()
+    papers = await service._search_europe_pmc("illicit drug abuse public health", max_results=3)
+    assert len(papers) > 0
+    first_paper = papers[0]
+    assert first_paper["url"].startswith("http")
+    assert "scholar.google.com" not in first_paper["url"]
+    if first_paper.get("doi"):
+        assert first_paper["url"].startswith("https://doi.org/")
 
 
 # @trace: REQ-016
