@@ -6,7 +6,10 @@ Hỗ trợ tìm kiếm học thuật (ArXiv/Semantic Scholar), tải lên tài l
 import os
 import shutil
 from typing import List, Optional
-import magic
+try:
+    import magic
+except ImportError:
+    magic = None
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,13 +106,20 @@ async def upload_paper_pdf(
     header = await file.read(2048)
     await file.seek(0)  # Đặt lại con trỏ file về đầu để lưu trữ trọn vẹn sau đó
 
-    # Kiểm tra MIME type thông qua python-magic
-    mime_type = magic.from_buffer(header, mime=True)
-    if mime_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file format: Detected '{mime_type}', expected 'application/pdf'"
-        )
+    # Kiểm tra MIME type thông qua python-magic hoặc magic bytes header
+    if magic:
+        mime_type = magic.from_buffer(header, mime=True)
+        if mime_type != "application/pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file format: Detected '{mime_type}', expected 'application/pdf'"
+            )
+    else:
+        if not header.startswith(b"%PDF"):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file format: File does not have valid PDF header bytes"
+            )
 
     # Lưu file PDF vào ổ đĩa cục bộ
     session_upload_dir = os.path.join(settings.UPLOAD_DIR, session_id)
