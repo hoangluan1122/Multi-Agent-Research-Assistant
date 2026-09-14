@@ -69,6 +69,7 @@ export interface Paper {
   venue?: string;
   doi?: string;
   url?: string;
+  pdf_path?: string;
   source: string;
   relevance_score: number;
   is_selected: boolean;
