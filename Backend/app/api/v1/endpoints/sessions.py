@@ -130,21 +130,38 @@ async def create_session(
     await db.refresh(session)
     return session
 
-# @trace: REQ-001, REQ-002
+# @trace: REQ-001, REQ-002, REQ-009
 @router.get("", response_model=List[SessionResponse])
 async def list_sessions(
+    request: Request,
     limit: int = 50,
     offset: int = 0,
     current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Lấy danh sách các phiên nghiên cứu gần nhất trong hệ thống.
-    Nếu người dùng đã đăng nhập: Trả về các phiên của chính tài khoản đó.
+    REQ-009: Lấy danh sách các phiên nghiên cứu với cơ chế phân lập bảo mật tuyệt đối:
+    - Nếu đã đăng nhập: CHỈ trả về đúng các phiên do chính tài khoản đó tạo (user_id == current_user.id).
+    - Nếu là khách (chưa đăng nhập): CHỈ trả về các phiên do chính IP của máy khách đó tạo (user_id is None and client_ip == client_ip). Tuyệt đối không hiển thị dữ liệu của người khác ra ngoài.
     """
     stmt = select(ResearchSession).order_by(desc(ResearchSession.created_at)).limit(limit).offset(offset)
     if current_user:
-        stmt = stmt.where(or_(ResearchSession.user_id == current_user.id, ResearchSession.user_id.is_(None)))
+        stmt = stmt.where(ResearchSession.user_id == current_user.id)
+    else:
+        # Lấy IP của khách để chỉ lọc phiên của riêng khách đó
+        forwarded = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+        if forwarded:
+            client_ip = forwarded.split(",")[0].strip()
+        elif request.client:
+            client_ip = request.client.host
+        else:
+            client_ip = "127.0.0.1"
+
+        stmt = stmt.where(
+            ResearchSession.user_id.is_(None),
+            ResearchSession.client_ip == client_ip
+        )
+
     res = await db.execute(stmt)
     return res.scalars().all()
 

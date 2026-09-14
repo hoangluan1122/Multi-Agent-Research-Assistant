@@ -283,9 +283,34 @@ async def run_member3_test_suite():
         # Người dùng đã đăng nhập (User A) tạo câu hỏi -> KHÔNG BỊ GIỚI HẠN
         auth_sess = await client.post("/api/v1/sessions", json={"topic": "User A Unlimited Research"}, headers=headers_a)
         assert auth_sess.status_code == 201
-        print("  [Tài khoản Đăng nhập OK] User A tạo thêm phiên thành công, không bị giới hạn quota của khách.")
-
         print("  -> REQ-008 PASS: Kiểm soát hạn mức khách vãng lai và phân quyền không giới hạn cho tài khoản đăng nhập thành công tuyệt đối.\n", flush=True)
+
+        # REQ-009: Phân Lập Tuyệt Đối Lịch Sử Phiên Nghiên Cứu (Session Privacy & Isolation)
+        print("[TEST REQ-009] Kiểm tra phân lập tuyệt đối danh sách phiên (chỉ tài khoản sở hữu mới thấy)...", flush=True)
+
+        # 1. User A gọi GET /sessions -> Chỉ thấy phiên của User A
+        list_a = await client.get("/api/v1/sessions", headers=headers_a)
+        assert list_a.status_code == 200
+        sessions_of_a = list_a.json()
+        assert all(s["user_id"] == user_a_id for s in sessions_of_a), "User A không được nhìn thấy phiên của người khác!"
+        print(f"  [User A OK] User A chỉ thấy {len(sessions_of_a)} phiên của riêng mình.")
+
+        # 2. User B gọi GET /sessions -> Không được thấy bất kỳ phiên nào của User A
+        list_b = await client.get("/api/v1/sessions", headers=headers_b)
+        assert list_b.status_code == 200
+        sessions_of_b = list_b.json()
+        assert all(s["user_id"] == user_b_id for s in sessions_of_b), "User B không được nhìn thấy phiên của User A!"
+        assert not any(s["id"] == session_a_id for s in sessions_of_b), "User B bị cấm thấy session_a_id!"
+        print(f"  [User B OK] User B chỉ thấy {len(sessions_of_b)} phiên của riêng mình, hoàn toàn không thấy phiên của User A.")
+
+        # 3. Khách gọi GET /sessions -> Tuyệt đối không thấy phiên của User A hoặc User B
+        other_guest_ip = f"198.51.200.{uuid.uuid4().hex[:4]}"
+        list_guest = await client.get("/api/v1/sessions", headers={"X-Forwarded-For": other_guest_ip})
+        assert list_guest.status_code == 200
+        assert len(list_guest.json()) == 0, "Khách mới hoàn toàn không được nhìn thấy phiên của bất kỳ ai!"
+        print("  [Khách Mới OK] Khách mới chưa tạo câu hỏi sẽ nhận danh sách rỗng, không bị lộ lịch sử nghiên cứu của người khác.")
+
+        print("  -> REQ-009 PASS: Phân lập tuyệt đối lịch sử nghiên cứu của từng tài khoản thành công 100%.\n", flush=True)
 
     print("=======================================================", flush=True)
     print("   TẤT CẢ CÁC BÀI TEST THÀNH VIÊN 3 ĐÃ PASS 100%!", flush=True)
