@@ -265,11 +265,10 @@ export function App() {
         sources,
       });
       setPapers((prev) => {
-        const existingIds = new Set(prev.map((p) => p.id));
-        const newOnes = results.filter((p) => !existingIds.has(p.id));
-        return [...newOnes, ...prev];
+        const uploadedPapers = prev.filter((p) => p.source === 'upload');
+        return [...results, ...uploadedPapers];
       });
-      addToast('success', `Tìm thấy ${results.length} bài báo mới.`);
+      addToast('success', `Tìm thấy ${results.length} bài báo phù hợp.`);
     } catch (err: any) {
       addToast('error', `Tìm kiếm bài báo thất bại: ${err.message}`);
     }
