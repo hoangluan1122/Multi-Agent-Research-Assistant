@@ -30,7 +30,7 @@ jobs:
             echo "Installing backend dependencies..."
             /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install -r Backend/requirements.txt
 
-            echo "Configuring Neon PostgreSQL..."
+            echo "Configuring Neon PostgreSQL & Default LLM Model..."
             mkdir -p Backend
             if [ -f "Backend/.env" ]; then
               if grep -q "^DATABASE_URL=" Backend/.env; then
@@ -38,17 +38,25 @@ jobs:
               else
                 echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' >> Backend/.env
               fi
+              if grep -q "^DEFAULT_LLM_MODEL=" Backend/.env; then
+                sed -i 's|^DEFAULT_LLM_MODEL=.*|DEFAULT_LLM_MODEL=gemini-3.7-flash|' Backend/.env
+              else
+                echo 'DEFAULT_LLM_MODEL=gemini-3.7-flash' >> Backend/.env
+              fi
             else
               echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' > Backend/.env
+              echo 'DEFAULT_LLM_MODEL=gemini-3.7-flash' >> Backend/.env
             fi
 
             echo "Building frontend..."
             cd Frontend
-            npm ci
+            npm ci || npm install
             npm run build
+            cd ..
 
             echo "Restarting PaperFlow..."
             systemctl restart paperflow
+
 
             echo "Checking service..."
             sleep 3

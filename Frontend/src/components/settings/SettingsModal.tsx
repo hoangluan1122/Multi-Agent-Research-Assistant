@@ -26,7 +26,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // @trace: REQ-012: Chế độ API ('system' = API Web có sẵn, 'custom' = API cá nhân)
   const [apiMode, setApiMode] = useState<'system' | 'custom'>('system');
   const [provider, setProvider] = useState<string>('gemini');
-  const [model, setModel] = useState<string>('gemini-2.5-flash');
+  const [model, setModel] = useState<string>('gemini-3.7-flash');
   const [geminiKey, setGeminiKey] = useState<string>('');
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>('');
@@ -48,7 +48,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
 
       setProvider(config.llm_provider || 'gemini');
-      setModel(config.default_model || 'gemini-2.5-flash');
+      setModel(config.default_model || 'gemini-3.7-flash');
       setMaxSearch(config.max_search_papers || 10);
       setMaxRetries(config.max_review_retries || 2);
     }
@@ -156,7 +156,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => {
                 setApiMode('system');
                 setProvider('gemini');
-                setModel('gemini-2.5-flash');
+                setModel('gemini-3.7-flash');
               }}
               className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                 apiMode === 'system'
@@ -224,10 +224,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
               {[
-                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Mặc định - Cực nhanh' },
-                { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', tag: 'Mô hình AI mới' },
+                { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', tag: 'Mặc định - Thông minh & Mới' },
+                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Bản ổn định - Cực nhanh' },
                 { id: 'gpt-4o-mini', label: 'GPT-4o Mini', tag: 'OpenAI Fallback' },
               ].map((m) => (
+
                 <button
                   type="button"
                   key={m.id}

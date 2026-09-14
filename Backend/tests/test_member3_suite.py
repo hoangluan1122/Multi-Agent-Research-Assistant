@@ -341,14 +341,14 @@ async def run_member3_test_suite():
         update_system = await client.put("/api/v1/config", json={
             "use_system_default": True,
             "llm_provider": "gemini",
-            "default_model": "gemini-2.5-flash"
+            "default_model": "gemini-3.7-flash"
         })
         assert update_system.status_code == 200
         sys_data = update_system.json()
         assert sys_data["use_system_key"] is True
         assert sys_data["llm_provider"] == "gemini"
-        assert sys_data["default_model"] == "gemini-2.5-flash"
-        print("  [REQ-012 Web OK] Chuyển đổi về API mặc định của Web thành công (use_system_key = True).")
+        assert sys_data["default_model"] == "gemini-3.7-flash"
+        print("  [REQ-012 Web OK] Chuyển đổi về API mặc định của Web thành công (use_system_key = True, model = gemini-3.7-flash).")
         print("  -> REQ-011 & REQ-012 PASS: Sửa triệt để lỗi lưu cài đặt và hoàn thiện cơ chế chọn API Web vs Cá Nhân 100%.\n", flush=True)
 
     print("=======================================================", flush=True)
