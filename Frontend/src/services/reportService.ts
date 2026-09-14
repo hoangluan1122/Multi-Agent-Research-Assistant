@@ -37,5 +37,15 @@ export const reportService = {
     );
     return response.data;
   },
+
+  /** Sửa báo cáo theo feedback người dùng (UC011) */
+  async reviseReport(reportId: string, feedback: string): Promise<Report> {
+    const response = await apiClient.post<Report>(
+      `/api/v1/reports/${reportId}/revise`,
+      { feedback }
+    );
+    return response.data;
+  },
 };
+
 

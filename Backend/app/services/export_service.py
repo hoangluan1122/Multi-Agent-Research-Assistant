@@ -117,11 +117,34 @@ class ExportService:
         logger.info(f"Generated DOCX report: {file_path}")
         return file_path
 
+    def _register_unicode_font(self) -> str:
+        """Đăng ký font TrueType hỗ trợ tiếng Việt Unicode cho ReportLab."""
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+
+        font_candidates = [
+            ("ArialUnicode", "C:/Windows/Fonts/arial.ttf"),
+            ("TimesUnicode", "C:/Windows/Fonts/times.ttf"),
+            ("SegoeUnicode", "C:/Windows/Fonts/segoeui.ttf"),
+            ("DejaVuSans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+        ]
+
+        for font_name, font_path in font_candidates:
+            if os.path.exists(font_path):
+                try:
+                    if font_name not in pdfmetrics.getRegisteredFontNames():
+                        pdfmetrics.registerFont(TTFont(font_name, font_path))
+                    return font_name
+                except Exception as e:
+                    logger.warning(f"Could not register font {font_name} from {font_path}: {e}")
+        return "Helvetica"
+
     def export_pdf(self, title: str, content: str, session_id: str) -> str:
         """
         Xuất báo cáo sang định dạng PDF chất lượng cao bằng ReportLab:
+        - Hỗ trợ tiếng Việt Unicode hoàn chỉnh qua font TrueType hệ thống.
+        - Giữ nguyên và dựng bảng ma trận so sánh Markdown (Table Grid).
         - Định dạng lề và khổ giấy Letter.
-        - Thiết lập bảng màu sắc học thuật chuyên nghiệp.
         """
         filename = f"report_{session_id[:8]}.pdf"
         file_path = os.path.join(self.export_dir, filename)
@@ -129,67 +152,165 @@ class ExportService:
         doc = SimpleDocTemplate(
             file_path,
             pagesize=letter,
-            rightMargin=54,
-            leftMargin=54,
-            topMargin=54,
-            bottomMargin=54
+            rightMargin=40,
+            leftMargin=40,
+            topMargin=40,
+            bottomMargin=40
         )
+
+        font_name = self._register_unicode_font()
 
         styles = getSampleStyleSheet()
         title_style = ParagraphStyle(
             "ReportTitle",
             parent=styles["Heading1"],
-            fontSize=20,
-            leading=24,
+            fontName=font_name,
+            fontSize=18,
+            leading=22,
             textColor=colors.HexColor("#1E3A8A"),
-            spaceAfter=15,
+            spaceAfter=14,
             alignment=1  # Căn giữa
         )
         h2_style = ParagraphStyle(
             "ReportH2",
             parent=styles["Heading2"],
-            fontSize=14,
-            leading=18,
+            fontName=font_name,
+            fontSize=13,
+            leading=17,
             textColor=colors.HexColor("#1E40AF"),
             spaceBefore=12,
             spaceAfter=6
         )
+        h3_style = ParagraphStyle(
+            "ReportH3",
+            parent=styles["Heading3"],
+            fontName=font_name,
+            fontSize=11,
+            leading=15,
+            textColor=colors.HexColor("#1F2937"),
+            spaceBefore=8,
+            spaceAfter=4
+        )
         body_style = ParagraphStyle(
             "ReportBody",
             parent=styles["BodyText"],
-            fontSize=10,
-            leading=14,
+            fontName=font_name,
+            fontSize=9,
+            leading=13,
             textColor=colors.HexColor("#1F2937"),
-            spaceAfter=8
+            spaceAfter=6
+        )
+        cell_header_style = ParagraphStyle(
+            "CellHeader",
+            fontName=font_name,
+            fontSize=8,
+            leading=10,
+            textColor=colors.white,
+            alignment=1
+        )
+        cell_body_style = ParagraphStyle(
+            "CellBody",
+            fontName=font_name,
+            fontSize=7.5,
+            leading=10,
+            textColor=colors.HexColor("#1F2937")
         )
 
         story = [
             Paragraph(title, title_style),
-            Spacer(1, 12)
+            Spacer(1, 10)
         ]
 
-        for line in content.split("\n"):
+        lines = content.split("\n")
+        in_table = False
+        table_lines = []
+
+        for line in lines:
             line_str = line.strip()
-            if not line_str or line_str.startswith("|"):
+            if not line_str:
                 continue
 
-            # Escape ký tự đặc biệt cho bộ parser XML của ReportLab
+            if line_str.startswith("|") and line_str.endswith("|"):
+                in_table = True
+                table_lines.append(line_str)
+                continue
+            elif in_table:
+                # Render bảng ReportLab
+                tbl = self._render_pdf_table(table_lines, cell_header_style, cell_body_style)
+                if tbl:
+                    story.append(tbl)
+                    story.append(Spacer(1, 10))
+                in_table = False
+                table_lines = []
+
+            # Escape ký tự đặc biệt cho XML parser của ReportLab
             clean = line_str.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             clean = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", clean)
             clean = re.sub(r"\*(.*?)\*", r"<i>\1</i>", clean)
 
-            if clean.startswith("## "):
+            if clean.startswith("### "):
+                story.append(Paragraph(clean[4:], h3_style))
+            elif clean.startswith("## "):
                 story.append(Paragraph(clean[3:], h2_style))
-            elif clean.startswith("### "):
-                story.append(Paragraph(clean[4:], h2_style))
-            elif clean.startswith("- "):
+            elif clean.startswith("# "):
+                story.append(Paragraph(clean[2:], h2_style))
+            elif clean.startswith("- ") or clean.startswith("* "):
                 story.append(Paragraph(f"&bull; {clean[2:]}", body_style))
+            elif re.match(r"^\d+\.\s", clean):
+                story.append(Paragraph(clean, body_style))
             else:
                 story.append(Paragraph(clean, body_style))
+
+        if in_table and table_lines:
+            tbl = self._render_pdf_table(table_lines, cell_header_style, cell_body_style)
+            if tbl:
+                story.append(tbl)
 
         doc.build(story)
         logger.info(f"Generated PDF report: {file_path}")
         return file_path
+
+    def _render_pdf_table(self, lines: list, header_style: ParagraphStyle, body_style: ParagraphStyle) -> Optional[Table]:
+        """Chuyển đổi dữ liệu bảng Markdown sang đối tượng Table trong ReportLab."""
+        rows_data = []
+        for l in lines:
+            if "---" in l:
+                continue
+            cells = [c.strip() for c in l.split("|")[1:-1]]
+            if cells:
+                rows_data.append(cells)
+
+        if not rows_data:
+            return None
+
+        # Wrap cells in Paragraph to support auto-wrapping and unicode
+        wrapped_data = []
+        for r_idx, row in enumerate(rows_data):
+            wrapped_row = []
+            for cell_text in row:
+                st = header_style if r_idx == 0 else body_style
+                # Bỏ markdown bold thừa trong ô nếu có
+                clean_cell = cell_text.replace("**", "")
+                wrapped_row.append(Paragraph(clean_cell, st))
+            wrapped_data.append(wrapped_row)
+
+        num_cols = len(rows_data[0])
+        col_widths = [530 / num_cols] * num_cols
+
+        t = Table(wrapped_data, colWidths=col_widths, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1E3A8A")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor("#F8FAFC"), colors.white]),
+        ]))
+        return t
 
     def _render_docx_table(self, doc: Document, lines: list):
         """Chuyển đổi dữ liệu bảng Markdown sang đối tượng Table trong python-docx."""
@@ -230,4 +351,5 @@ class ExportService:
 
 # Khởi tạo singleton instance cho ExportService
 export_service = ExportService()
+
 

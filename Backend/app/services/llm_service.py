@@ -66,8 +66,9 @@ class LLMService:
         target_model = model or self.default_model
 
         # 1. Thử gọi Google GenAI SDK (google-genai v2.x)
-        if self.genai_client and settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("AIzaSyCb7w"):
-            candidate_models = [target_model, "gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.7-flash"]
+        api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
+        if self.genai_client and api_key and not api_key.startswith("your_") and len(api_key) > 15:
+            candidate_models = [target_model, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
             models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
             
             for m_name in models_to_try:
@@ -76,14 +77,14 @@ class LLMService:
                     if system_instruction:
                         config["system_instruction"] = system_instruction
                     
-                    # Gọi bất đồng bộ với timeout 12 giây
+                    # Gọi bất đồng bộ với timeout 60 giây để đảm bảo báo cáo dài được hoàn tất
                     response = await asyncio.wait_for(
                         self.genai_client.aio.models.generate_content(
                             model=m_name,
                             contents=prompt,
                             config=config
                         ),
-                        timeout=12.0
+                        timeout=60.0
                     )
                     if response and response.text:
                         return response.text
