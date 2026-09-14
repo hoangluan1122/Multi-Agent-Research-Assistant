@@ -6,7 +6,9 @@ Hỗ trợ tìm kiếm học thuật (ArXiv/Semantic Scholar), tải lên tài l
 import os
 import shutil
 from typing import List, Optional
+import magic
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -48,7 +50,7 @@ async def search_academic_papers(
         query=payload.query,
         year_start=payload.year_start,
         year_end=payload.year_end,
-        max_papers=payload.max_results,
+        max_papers=payload.max_results or 10,
         sources=payload.sources
     )
 
@@ -79,8 +81,21 @@ async def upload_paper_pdf(
     if not session:
         raise HTTPException(status_code=404, detail="Research session not found")
 
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    # 1. Kiểm tra phần mở rộng tên file
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported (invalid file extension)")
+
+    # 2. Đọc header bytes để xác thực định dạng thực tế (Magic Bytes)
+    header = await file.read(2048)
+    await file.seek(0)  # Đặt lại con trỏ file về đầu để lưu trữ trọn vẹn sau đó
+
+    # Kiểm tra MIME type thông qua python-magic
+    mime_type = magic.from_buffer(header, mime=True)
+    if mime_type != "application/pdf":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file format: Detected '{mime_type}', expected 'application/pdf'"
+        )
 
     # Lưu file PDF vào ổ đĩa cục bộ
     session_upload_dir = os.path.join(settings.UPLOAD_DIR, session_id)

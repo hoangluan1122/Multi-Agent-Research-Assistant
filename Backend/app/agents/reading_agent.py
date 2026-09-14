@@ -4,8 +4,10 @@ Chịu trách nhiệm bóc tách nội dung PDF/Abstract, đánh chỉ mục vec
 """
 
 import os
+import re
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
+from pypdf import PdfReader
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -16,8 +18,10 @@ from ..models.chunk import DocumentChunk
 from ..services.pdf_parser import pdf_parser
 from ..services.qdrant_service import qdrant_service
 from ..services.llm_service import llm_service
+from app.core.config import settings
 
 logger = logging.getLogger("paperflow.reading_agent")
+
 
 class ReadingAgent(BaseAgent):
     """
@@ -99,6 +103,84 @@ class ReadingAgent(BaseAgent):
             await self.log_end(db, run, status="FAILED", error_message=str(e))
             raise
 
+    def _detect_section(self, text: str) -> str:
+        """Nhận diện tên phân mục học thuật sơ bộ (Section) từ đoạn đầu của chunk."""
+        lower = text.lower()[:300]
+        if "abstract" in lower:
+            return "Abstract"
+        elif "introduction" in lower:
+            return "Introduction"
+        elif "related work" in lower or "background" in lower:
+            return "Related Work"
+        elif "method" in lower or "methodology" in lower or "architecture" in lower:
+            return "Methodology"
+        elif "experiment" in lower or "evaluation" in lower or "results" in lower:
+            return "Experiments & Results"
+        elif "discussion" in lower or "limitation" in lower:
+            return "Discussion & Limitations"
+        elif "conclusion" in lower:
+            return "Conclusion"
+        return "Body"
+
+    def extract_and_chunk_pdf(
+        self,
+        pdf_path: str,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """
+        Đọc file PDF bài báo và chia nhỏ thành các chunks có kích thước phù hợp (Sliding Window Chunking):
+        - Sử dụng pypdf để trích xuất văn bản từng trang.
+        - Giữ lại số trang (page_number) chính xác cho từng chunk phục vụ trích dẫn RAG.
+        - Áp dụng chunk_size và chunk_overlap để giữ sự liên tục về mặt ngữ nghĩa giữa các đoạn cắt.
+        - Loại bỏ ký tự thừa và khôi phục từ bị ngắt dòng gạch nối.
+        """
+        c_size = chunk_size or settings.CHUNK_SIZE
+        c_overlap = chunk_overlap or settings.CHUNK_OVERLAP
+
+        chunks: List[Dict[str, Any]] = []
+        full_text_list: List[str] = []
+        chunk_idx = 0
+
+        reader = PdfReader(pdf_path)
+        for page_idx, page in enumerate(reader.pages):
+            page_num = page_idx + 1
+            raw_text = page.extract_text() or ""
+
+            # Chuẩn hóa văn bản: gộp khoảng trắng thừa và nối từ bị ngắt ở cuối dòng
+            cleaned_text = re.sub(r"\s+", " ", raw_text)
+            cleaned_text = re.sub(r"-\s+", "", cleaned_text).strip()
+
+            if not cleaned_text:
+                continue
+
+            full_text_list.append(cleaned_text)
+
+            # Cắt văn bản trang thành các chunks có kích thước cố định và có phần overlap
+            start = 0
+            text_len = len(cleaned_text)
+
+            while start < text_len:
+                end = min(start + c_size, text_len)
+                chunk_text = cleaned_text[start:end].strip()
+
+                # Bỏ qua những đoạn quá ngắn (< 50 ký tự) không chứa đủ thông tin ngữ nghĩa
+                if len(chunk_text) >= 50:
+                    chunks.append({
+                        "chunk_index": chunk_idx,
+                        "page_number": page_num,
+                        "section_name": self._detect_section(chunk_text),
+                        "text": chunk_text
+                    })
+                    chunk_idx += 1
+
+                if end >= text_len:
+                    break
+                start += max(1, c_size - c_overlap)
+
+        full_text = "\n\n".join(full_text_list)
+        return full_text, chunks
+
     async def _analyze_paper(self, db: AsyncSession, session_id: str, paper: Paper) -> Dict[str, Any]:
         """
         Xử lý chi tiết một bài báo:
@@ -113,8 +195,7 @@ class ReadingAgent(BaseAgent):
         # 1. Đọc nội dung file PDF nếu tồn tại trên ổ đĩa
         if paper.pdf_path and os.path.exists(paper.pdf_path):
             try:
-                full_text, pages = pdf_parser.extract_text_from_pdf(paper.pdf_path)
-                chunks = pdf_parser.chunk_document(pages)
+                full_text, chunks = self.extract_and_chunk_pdf(paper.pdf_path)
                 content_text = full_text[:8000]  # Lấy 8.000 ký tự đầu cho phân tích trích xuất
             except Exception as e:
                 logger.warning(f"Failed to parse PDF for {paper.id}: {e}. Falling back to abstract.")
@@ -128,6 +209,7 @@ class ReadingAgent(BaseAgent):
                 "section_name": "Abstract",
                 "text": content_text
             }]
+
 
         # 2. Đưa các Chunks vào Qdrant Vector Store (UC005)
         try:
@@ -154,8 +236,10 @@ class ReadingAgent(BaseAgent):
                     embedding_id=point_ids[idx] if idx < len(point_ids) else None
                 )
                 db.add(doc_chunk)
+            await db.flush()
         except Exception as e:
             logger.error(f"Error ingesting chunks to Qdrant: {e}")
+
 
         # 3. Sử dụng LLM trích xuất các thành phần có cấu trúc (UC004)
         prompt = f"""You are an expert scientific researcher. Analyze the following academic paper content and extract structured research components.

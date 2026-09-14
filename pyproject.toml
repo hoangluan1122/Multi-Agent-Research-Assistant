@@ -5,6 +5,8 @@ requires-python = ">=3.11"
 
 [tool.pyright]
 extraPaths = ["Backend"]
+venvPath = "Backend"
+venv = ".venv"
 executionEnvironments = [
   { root = "Backend", extraPaths = ["Backend"] }
 ]
