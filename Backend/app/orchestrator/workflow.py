@@ -164,7 +164,8 @@ class ResearchWorkflowEngine:
                         break
                     else:
                         retry_count += 1
-                        feedback = review_res.get("feedback")
+                        # feedback = review_res.get("feedback")
+                        feedback = review_res.get("feedback") or "Bổ sung phân tích, kiểm tra lại trích dẫn và cải thiện báo cáo."
                         await self._notify(
                             session_id,
                             "RUNNING",
@@ -234,6 +235,22 @@ class ResearchWorkflowEngine:
         extra: Optional[Dict[str, Any]] = None
     ):
         """Hàm nội bộ đóng gói payload và phát sự kiện SSE tới client theo dõi qua workflow_broadcaster."""
+        
+        async with AsyncSessionLocal() as status_db:
+            stmt = select(ResearchSession).where(
+                ResearchSession.id == session_id
+            )
+            res = await status_db.execute(stmt)
+            status_session = res.scalar_one_or_none()
+
+            if status_session:
+                status_session.status = (
+                    status if status in {"COMPLETED", "FAILED"} else "RUNNING"
+                )
+                status_session.current_step = current_step
+                status_session.error_message = error
+                await status_db.commit()
+
         payload = {
             "session_id": session_id,
             "status": status,

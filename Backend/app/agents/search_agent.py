@@ -4,7 +4,6 @@ Chịu trách nhiệm tối ưu hóa từ khóa học thuật tiếng Anh qua LL
 """
 
 import logging
-import re
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -67,7 +66,11 @@ class SearchAgent(BaseAgent):
                 session = res.scalar_one_or_none()
                 if not session:
                     raise ValueError(f"Session {session_id} not found.")
-                query = session.topic
+                # Dùng cả chủ đề và câu hỏi chi tiết: người dùng có thể chỉnh yêu cầu
+                # ngay trên Dashboard trước khi chạy lại workflow.
+                query = "\n\n".join(
+                    part for part in [session.topic, session.research_question] if part
+                )
                 params = session.parameters or {}
                 year_start = year_start or params.get("year_start")
                 year_end = year_end or params.get("year_end")
@@ -153,59 +156,7 @@ Respond in JSON:
         prompt = f"Given this research topic or question: '{topic}', extract 3-5 concise academic search keywords (English) for searching academic papers. Return ONLY the search terms separated by space."
         result = await llm_service.generate_text(prompt, temperature=0.1)
         cleaned = result.strip().replace('"', '').replace('\n', ' ')
-        if not cleaned or self._is_known_unrelated_fallback(topic, cleaned):
-            return self._fallback_search_query(topic)
-        return cleaned
-
-    # @trace: REQ-013
-    def _fallback_search_query(self, topic: str) -> str:
-        """Build deterministic academic keywords (English) from the user's topic when LLM is unavailable."""
-        topic_lower = topic.lower()
-        if any(k in topic_lower for k in ["tuyến tiền liệt", "tiền liệt tuyến", "prostate"]):
-            return "prostate cancer prostate-specific antigen diagnosis therapy"
-        if any(k in topic_lower for k in ["tiền", "tiền tệ", "tài chính", "ngân hàng", "lạm phát", "tiền bạc", "money", "finance"]):
-            return "money currency monetary policy banking finance economics"
-        if any(k in topic_lower for k in ["ma tuý", "ma túy", "chất gây nghiện", "drug addiction"]):
-            return "illicit drug abuse addiction narcotics public health"
-        if any(k in topic_lower for k in ["bảo hiểm", "insurance"]):
-            return "insurance risk management deposit insurance social security"
-        if any(k in topic_lower for k in ["điện thoại", "smartphone", "mobile phone", "màn hình", "screen time"]):
-            return "smartphone screen time mental health cognitive effects adolescents"
-        if any(k in topic_lower for k in ["mạng xã hội", "social media", "facebook", "tiktok"]):
-            return "social media screen time depression anxiety adolescents"
-        if any(k in topic_lower for k in ["thuốc lá", "smoking", "tobacco", "nicotine"]):
-            return "tobacco smoking nicotine adverse health effects"
-        if any(k in topic_lower for k in ["ung thư", "cancer", "khối u"]):
-            return "cancer oncology clinical trials diagnosis therapy"
-        if any(k in topic_lower for k in ["tim mạch", "heart", "cardio"]):
-            return "cardiovascular disease heart pathology clinical biomarkers"
-        if any(k in topic_lower for k in ["tiểu đường", "diabetes"]):
-            return "diabetes mellitus insulin resistance clinical metabolic"
-        if any(k in topic_lower for k in ["ô nhiễm", "khí thải", "môi trường", "không khí"]):
-            return "air pollution environmental exposure respiratory health"
-        if any(k in topic_lower for k in ["trí tuệ nhân tạo", "ai", "học máy", "máy học", "machine learning"]):
-            return "artificial intelligence machine learning deep neural networks"
-
-        tokens = re.findall(r"[\w-]+", topic_lower, flags=re.UNICODE)
-        stopwords = {
-            "a", "an", "and", "are", "as", "for", "from", "in", "of", "or",
-            "research", "study", "the", "to", "with", "tác", "hại", "của", "đến",
-            "cơ", "thể", "con", "người", "ảnh", "hưởng", "các", "những", "cho",
-            "trong", "về", "như", "thế", "nào", "là", "gì"
-        }
-        keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
-        return " ".join(keywords[:6]) or topic
-
-    # @trace: REQ-013
-    def _is_known_unrelated_fallback(self, topic: str, refined_query: str) -> bool:
-        """Reject the legacy mock keyword response when it clearly does not match the topic."""
-        legacy_mock = "transformer deep learning medical segmentation"
-        if refined_query.strip().lower() != legacy_mock:
-            return False
-
-        topic_terms = set(self._fallback_search_query(topic).split())
-        refined_terms = set(refined_query.lower().split())
-        return topic_terms.isdisjoint(refined_terms)
+        return cleaned if cleaned else topic
 
 # Khởi tạo singleton instance cho SearchAgent
 search_agent = SearchAgent()

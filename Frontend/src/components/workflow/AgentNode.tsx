@@ -27,6 +27,7 @@ interface AgentNodeProps {
   description: string;
   currentActiveAgent?: string;
   latestRun?: AgentRun;
+  displayStatus?: 'waiting' | 'running' | 'completed' | 'failed';
   onClick: () => void;
 }
 
@@ -36,17 +37,34 @@ export const AgentNode: React.FC<AgentNodeProps> = ({
   description,
   currentActiveAgent,
   latestRun,
+  displayStatus,
   onClick,
 }) => {
   const { t } = useI18n();
   // Backend trả status UPPERCASE nên phải normalize về lowercase
+  // const latestRunStatus = (latestRun?.status || '').toLowerCase();
+  // // Ưu tiên: Completed > Failed > Running. Nếu đã hoàn thành thì không hiện "Đang chạy"
+  // const isCompleted = latestRunStatus === 'completed';
+  // const isFailed = latestRunStatus === 'failed';
+  // const isCurrentlyRunning = !isCompleted && !isFailed && (
+  //   currentActiveAgent === name || latestRunStatus === 'running'
+  // );
+
   const latestRunStatus = (latestRun?.status || '').toLowerCase();
-  // Ưu tiên: Completed > Failed > Running. Nếu đã hoàn thành thì không hiện "Đang chạy"
-  const isCompleted = latestRunStatus === 'completed';
-  const isFailed = latestRunStatus === 'failed';
-  const isCurrentlyRunning = !isCompleted && !isFailed && (
-    currentActiveAgent === name || latestRunStatus === 'running'
-  );
+
+  const isCompleted = displayStatus
+    ? displayStatus === 'completed'
+    : latestRunStatus === 'completed';
+
+  const isFailed = displayStatus
+    ? displayStatus === 'failed'
+    : latestRunStatus === 'failed';
+
+  const isCurrentlyRunning = displayStatus
+    ? displayStatus === 'running'
+    : !isCompleted &&
+    !isFailed &&
+    (currentActiveAgent === name || latestRunStatus === 'running');
 
   const getIcon = () => {
     switch (name) {

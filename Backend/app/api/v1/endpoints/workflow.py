@@ -106,26 +106,72 @@ async def get_workflow_status(
     runs = r_res.scalars().all()
 
     # Bảng quy đổi tiến độ phần trăm tương ứng với từng bước
+    # progress_map = {
+    #     "READY": 0,
+    #     "QUEUED": 5,
+    #     "STARTING_WORKFLOW": 10,
+    #     "SEARCHING_PAPERS": 20,
+    #     "READING_AND_EMBEDDING": 50,
+    #     "SUMMARIZING_AND_COMPARING": 70,
+    #     "FORMATTING_CITATIONS": 80,
+    #     "WRITING_DRAFT": 88,
+    #     "REVIEWING": 95,
+    #     "COMPLETED": 100,
+    #     "FAILED": 0
+    # }
+
     progress_map = {
         "READY": 0,
-        "QUEUED": 5,
-        "STARTING_WORKFLOW": 10,
-        "SEARCHING_PAPERS": 20,
-        "READING_AND_EMBEDDING": 50,
-        "SUMMARIZING_AND_COMPARING": 70,
-        "FORMATTING_CITATIONS": 80,
-        "WRITING_DRAFT": 88,
-        "REVIEWING": 95,
+        "QUEUED": 0,
+        "STARTING": 2,
+
+        "SEARCHING_PAPERS": 8,
+        "SEARCH_COMPLETED": 16,
+
+        "READING_AND_EMBEDDING": 22,
+        "READING_COMPLETED": 38,
+
+        "SUMMARIZING_AND_COMPARING": 45,
+
+        "WRITING_DRAFT": 60,
+        "REVISING_WORKFLOW": 70,
+        "REVIEWING_REPORT": 76,
+
+        "FORMATTING_CITATIONS": 92,
         "COMPLETED": 100,
-        "FAILED": 0
+        "FAILED": 0,
     }
+
+    progress = progress_map.get(
+        session.current_step,
+        progress_map.get(session.status, 0)
+    )
+
+    agent_for_step = {
+        "SEARCHING_PAPERS": "SearchAgent",
+        "SEARCH_COMPLETED": "SearchAgent",
+
+        "READING_AND_EMBEDDING": "ReadingAgent",
+        "READING_COMPLETED": "ReadingAgent",
+
+        "SUMMARIZING_AND_COMPARING": "SummarizationAgent",
+
+        "WRITING_DRAFT": "WritingAgent",
+        "REVISING_WORKFLOW": "WritingAgent",
+
+        "REVIEWING_REPORT": "ReviewAgent",
+
+        "FORMATTING_CITATIONS": "CitationAgent",
+    }
+
     progress = progress_map.get(session.current_step, progress_map.get(session.status, 0))
 
     return WorkflowStatusResponse(
         session_id=session.id,
         status=session.status,
         current_step=session.current_step,
-        current_agent=runs[-1].agent_name if (runs and session.status == "RUNNING") else None,
+        # current_agent=runs[-1].agent_name if (runs and session.status == "RUNNING") else None,
+        current_agent=agent_for_step.get(session.current_step),
         progress_percentage=progress,
         message=session.current_step.replace("_", " ").title(),
         agent_runs=[AgentRunResponse.model_validate(r) for r in runs],
