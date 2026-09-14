@@ -157,16 +157,32 @@ Respond in JSON:
             return self._fallback_search_query(topic)
         return cleaned
 
+    # @trace: REQ-013
     def _fallback_search_query(self, topic: str) -> str:
-        """Build deterministic keywords from the user's topic when the LLM fallback is unavailable."""
-        tokens = re.findall(r"[\w-]+", topic.lower(), flags=re.UNICODE)
+        """Build deterministic academic keywords (English) from the user's topic when LLM is unavailable."""
+        topic_lower = topic.lower()
+        if any(k in topic_lower for k in ["thuốc lá", "smoking", "tobacco", "nicotine"]):
+            return "tobacco smoking nicotine adverse health effects"
+        if any(k in topic_lower for k in ["ung thư", "cancer", "khối u"]):
+            return "cancer oncology clinical trials diagnosis therapy"
+        if any(k in topic_lower for k in ["tim mạch", "heart", "cardio"]):
+            return "cardiovascular disease heart pathology clinical biomarkers"
+        if any(k in topic_lower for k in ["tiểu đường", "diabetes"]):
+            return "diabetes mellitus insulin resistance clinical metabolic"
+        if any(k in topic_lower for k in ["trí tuệ nhân tạo", "ai", "học máy", "máy học", "machine learning"]):
+            return "artificial intelligence machine learning deep neural networks"
+
+        tokens = re.findall(r"[\w-]+", topic_lower, flags=re.UNICODE)
         stopwords = {
             "a", "an", "and", "are", "as", "for", "from", "in", "of", "or",
-            "research", "study", "the", "to", "with",
+            "research", "study", "the", "to", "with", "tác", "hại", "của", "đến",
+            "cơ", "thể", "con", "người", "ảnh", "hưởng", "các", "những", "cho",
+            "trong", "về", "như", "thế", "nào", "là", "gì"
         }
         keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
         return " ".join(keywords[:6]) or topic
 
+    # @trace: REQ-013
     def _is_known_unrelated_fallback(self, topic: str, refined_query: str) -> bool:
         """Reject the legacy mock keyword response when it clearly does not match the topic."""
         legacy_mock = "transformer deep learning medical segmentation"
