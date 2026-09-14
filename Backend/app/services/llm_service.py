@@ -345,6 +345,14 @@ class LLMService:
         
         # Nhận diện chủ đề tiếng Việt phổ biến để chuyển sang từ khóa tiếng Anh học thuật cho ArXiv / Crossref
         topic_lower = topic.lower()
+        if "tuyến tiền liệt" in topic_lower or "tiền liệt tuyến" in topic_lower or "prostate" in topic_lower:
+            return "prostate cancer prostate-specific antigen diagnosis therapy"
+        if "tiền" in topic_lower or "tiền tệ" in topic_lower or "tài chính" in topic_lower or "ngân hàng" in topic_lower:
+            return "money currency monetary policy banking finance economics"
+        if "ma tuý" in topic_lower or "ma túy" in topic_lower or "chất gây nghiện" in topic_lower:
+            return "illicit drug abuse addiction narcotics public health"
+        if "bảo hiểm" in topic_lower:
+            return "insurance risk management deposit insurance social security"
         if "điện thoại" in topic_lower or "smartphone" in topic_lower or "màn hình" in topic_lower:
             return "smartphone screen time mental health cognitive effects adolescents"
         if "mạng xã hội" in topic_lower or "social media" in topic_lower:

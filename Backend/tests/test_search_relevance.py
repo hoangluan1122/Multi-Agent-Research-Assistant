@@ -103,3 +103,47 @@ def test_smartphone_vietnamese_query_mapping():
     assert "transformer" not in keywords.lower()
 
 
+# @trace: REQ-017
+def test_money_vietnamese_query_mapping():
+    service = LLMService()
+    prompt = (
+        "Given this research topic or question: 'tiền', "
+        "extract 3-5 concise academic search keywords (English) for searching academic papers."
+    )
+    keywords = service._mock_keyword_extraction(prompt)
+    assert any(k in keywords.lower() for k in ["money", "currency", "monetary", "finance", "banking"])
+    assert "prostate" not in keywords.lower()
+
+
+# @trace: REQ-017, REQ-018
+def test_money_query_filters_prostate_papers():
+    service = AcademicSearchService()
+    papers = [
+        {
+            "title": "Phí bảo hiểm tiền gửi và hạn mức trả tiền bảo hiểm tại Việt Nam",
+            "abstract": "Nghiên cứu về cơ chế bảo hiểm tiền gửi và an toàn hệ thống ngân hàng.",
+            "year": 2024,
+            "url": "https://doi.org/10.1234/finance.001"
+        },
+        {
+            "title": "ĐẶC ĐIỂM VÀ SO SÁNH GIÁ TRỊ CỦA KHÁNG NGUYÊN ĐẶC HIỆU TUYẾN TIỀN LIỆT TOÀN PHẦN (PSAT)",
+            "abstract": "Nghiên cứu lâm sàng về sinh hóa tuyến tiền liệt trong chẩn đoán ung thư.",
+            "year": 2023,
+            "url": "https://doi.org/10.1234/med.002"
+        },
+        {
+            "title": "DÒNG TIỀN, CHẤT LƯỢNG LỢI NHUẬN VÀ NẮM GIỮ TIỀN MẶT TẠI VIỆT NAM",
+            "abstract": "Phân tích tài chính doanh nghiệp và lượng tiền mặt.",
+            "year": 2024,
+            "url": "https://doi.org/10.31219/osf.io/paxh6"
+        }
+    ]
+
+    ranked = service._rank_by_query_match("tiền", papers)
+    titles = [p["title"] for p in ranked]
+    # Ensure prostate paper is rejected
+    assert not any("TUYẾN TIỀN LIỆT" in t for t in titles)
+    assert any("tiền gửi" in t for t in titles)
+
+
+

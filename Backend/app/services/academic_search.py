@@ -281,12 +281,22 @@ class AcademicSearchService:
                         venue_list = item.get("container-title", [])
                         venue = venue_list[0] if venue_list else "Crossref Academic Publication"
 
-                        url = item.get("URL") or f"https://scholar.google.com/scholar?q={quote_plus(title)}"
+                        raw_url = item.get("URL") or ""
+                        # Nếu là link preprint OSF (osf.io), thường bị lag kẹt xoay tròn tại Việt Nam,
+                        # chuyển hướng sang Google Scholar để người dùng mở bài báo kèm PDF và các nguồn tải trực tiếp
+                        if not raw_url or "osf.io" in raw_url.lower():
+                            url = f"https://scholar.google.com/scholar?q={quote_plus(title)}"
+                        else:
+                            url = raw_url
                         doi = item.get("DOI")
 
                         # Abstract from Crossref if available (strip JATS XML tags if present)
                         raw_abstract = item.get("abstract", "")
                         abstract = re.sub(r"<[^>]+>", "", raw_abstract).strip() if raw_abstract else f"Research publication on {title} exploring methodological and empirical findings."
+
+                        # Bỏ qua ngay lập tức nếu lệch miền ngữ nghĩa (ví dụ tìm tiền nhưng ra tuyến tiền liệt)
+                        if self._is_unrelated_domain(query, title, abstract):
+                            continue
 
                         papers.append({
                             "title": title,
@@ -340,6 +350,20 @@ class AcademicSearchService:
                 return True
         return False
 
+    # @trace: REQ-017
+    def _is_unrelated_domain(self, query: str, title: str, abstract: str) -> bool:
+        """Lọc các bài báo vi phạm ngữ cảnh (ví dụ: tìm 'tiền/tài chính' nhưng ra 'tuyến tiền liệt'/prostate)"""
+        q_lower = query.lower()
+        content_lower = f"{title} {abstract}".lower()
+        
+        # Nếu tìm về tiền tệ / tài chính nhưng bài báo là về tuyến tiền liệt / y khoa
+        is_money_query = any(w in q_lower for w in ["tiền", "money", "finance", "currency", "tài chính", "monetary", "ngân hàng"])
+        if is_money_query:
+            if any(med in content_lower for med in ["tuyến tiền liệt", "tiền liệt", "prostate", "psat", "psad"]):
+                return True
+                
+        return False
+
     def _rank_by_query_match(
         self,
         query: str,
@@ -354,6 +378,11 @@ class AcademicSearchService:
         for paper in papers:
             title = paper.get("title") or ""
             abstract = paper.get("abstract") or ""
+
+            # Loại bỏ các bài báo lệch hoàn toàn lĩnh vực chuyên môn (vd: tiền vs tuyến tiền liệt)
+            if self._is_unrelated_domain(query, title, abstract):
+                continue
+
             venue = paper.get("venue") or ""
             title_terms = set(self._tokenize(title))
             all_terms = set(self._tokenize(f"{title} {abstract} {venue}"))
