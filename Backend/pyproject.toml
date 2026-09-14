@@ -5,6 +5,8 @@ requires-python = ">=3.11"
 
 [tool.pyright]
 extraPaths = ["."]
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
