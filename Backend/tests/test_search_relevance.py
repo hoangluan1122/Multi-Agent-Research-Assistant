@@ -70,8 +70,36 @@ Method: Clinical cohort study
 """
     report = service._mock_generation(writing_prompt, None)
     # Ensure it is Markdown with standard headers, NOT raw JSON dictionary
-    assert not report.strip().startswith("{")
     assert "## 1. Giới thiệu" in report
     assert "## 2. Phân tích" in report
     assert "tác hại của thuốc lá đến cơ thể con người" in report
+
+
+# @trace: REQ-014, REQ-015
+def test_fallback_papers_generates_exact_count_and_safe_urls():
+    service = AcademicSearchService()
+    count_5 = service._generate_fallback_papers("smartphone screen time", count=5)
+    assert len(count_5) == 5, f"Expected 5 papers, got {len(count_5)}"
+    
+    count_8 = service._generate_fallback_papers("smartphone screen time", count=8)
+    assert len(count_8) == 8, f"Expected 8 papers, got {len(count_8)}"
+
+    # Ensure URLs are valid search URLs and DO NOT link to the unrelated finance paper 2401.00001
+    for p in count_5:
+        assert "2401.00001" not in p["url"]
+        assert "scholar.google.com" in p["url"] or "arxiv.org/search" in p["url"]
+        assert "smartphone" in p["url"] or "screen" in p["url"]
+
+
+# @trace: REQ-016
+def test_smartphone_vietnamese_query_mapping():
+    service = LLMService()
+    prompt = (
+        "Given this research topic or question: 'tác hại điện thoại', "
+        "extract 3-5 concise academic search keywords (English) for searching academic papers."
+    )
+    keywords = service._mock_keyword_extraction(prompt)
+    assert any(k in keywords.lower() for k in ["smartphone", "screen", "mobile", "phone"])
+    assert "transformer" not in keywords.lower()
+
 

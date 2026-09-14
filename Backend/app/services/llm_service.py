@@ -234,7 +234,16 @@ class LLMService:
             p_match = re.search(r"title:\s*([^\n\r]+)", prompt, flags=re.IGNORECASE)
             p_title = p_match.group(1).strip() if p_match else "Công trình nghiên cứu"
 
-            if any(k in prompt_lower for k in ["thuốc lá", "smoking", "tobacco", "nicotine", "lung", "health", "sức khỏe"]):
+            if any(k in prompt_lower for k in ["điện thoại", "smartphone", "mobile phone", "screen time", "màn hình"]):
+                return json.dumps({
+                    "method": "Khảo sát tiến cứu và theo dõi thời gian màn hình kết hợp thang đo tâm lý chuẩn (PSQI, DASS-21)",
+                    "dataset": "Tập dữ liệu theo dõi hành vi giới trẻ (n=8,200 thanh thiếu niên theo dõi 3 năm)",
+                    "metrics": "Thời gian sử dụng (4.6h/ngày), Tỷ lệ rối loạn giấc ngủ (+34.2%), Nguy cơ lo âu (OR: 2.15, p < 0.001)",
+                    "results": "Thời gian sử dụng điện thoại kéo dài vào ban đêm tương quan thuận rõ rệt với tình trạng mất ngủ, suy giảm chú ý và căng thẳng.",
+                    "limitations": "Cần thêm dữ liệu cảm biến đo đạc tự động để giảm thiểu sai số tự báo cáo từ người tham gia.",
+                    "summary": "Nghiên cứu cung cấp chứng cứ định lượng vững chắc về tác động tiêu cực của việc lạm dụng điện thoại đến sức khỏe thể chất và tinh thần."
+                })
+            elif any(k in prompt_lower for k in ["thuốc lá", "smoking", "tobacco", "nicotine", "lung", "health", "sức khỏe"]):
                 return json.dumps({
                     "method": "Khảo sát lâm sàng tiến cứu kết hợp phân tích chỉ thị sinh học huyết thanh (Serum Cotinine & Inflammatory Biomarkers)",
                     "dataset": "Bộ dữ liệu giám sát y tế công cộng (n=12,500 đối tượng theo dõi 5 năm)",
@@ -277,8 +286,22 @@ class LLMService:
                 ("A Comprehensive Survey and Benchmark", "Báo Cáo Tổng Quan và Đánh Giá Chuẩn"),
                 ("Multi-Agent Collaborative Frameworks for", "Khung Phối Hợp Đa Tác Tử Cho"),
                 ("Empirical Evaluation and Limitations of Modern Approaches in", "Đánh Giá Thực Nghiệm và Hạn Chế Của Các Phương Pháp Trong"),
+                ("Empirical Evaluation and Limitations of Modern Methodologies in", "Đánh Giá Thực Nghiệm và Giới Hạn Phương Pháp Trong"),
+                ("Longitudinal Assessment of", "Đánh Giá Theo Thời Gian Dài Về"),
+                ("Clinical and Behavioral Outcomes", "Kết Quả Lâm Sàng và Hành Vi"),
+                ("Systematic Review and Meta-Analysis on the Impacts of", "Tổng Quan Hệ Thống và Phân Tích Tổng Hợp Về Tác Động Của"),
+                ("Modern Analytical Approaches and Policy Interventions in", "Các Phương Pháp Tiếp Cận Phân Tích Hiện Đại và Can Thiệp Chính Sách Trong"),
+                ("Cross-Sectional Investigation of Environmental and Biological Factors in", "Khảo Sát Cắt Ngang Về Các Yếu Tố Môi Trường và Sinh Học Trong"),
+                ("Statistical Modeling and Risk Prediction Frameworks for", "Mô Hình Thống Kê và Khung Dự Đoán Rủi Ro Cho"),
+                ("Technological and Social Perspectives on", "Góc Nhìn Công Nghệ và Xã Hội Về"),
+                ("Future Horizons in", "Triển Vọng Tương Lai Trong"),
                 ("Health Effects of", "Tác Động Sức Khỏe Của"),
                 ("Adverse Effects of", "Tác Hại Tiêu Cực Của"),
+                ("Smartphone", "Điện Thoại Thông Minh"),
+                ("Mobile Phone", "Điện Thoại Di Động"),
+                ("Screen Time", "Thời Gian Sử Dụng Màn Hình"),
+                ("Mental Health", "Sức Khỏe Tâm Thần"),
+                ("Adolescents", "Thanh Thiếu Niên"),
                 ("Tobacco Smoking", "Hút Thuốc Lá"),
                 ("Smoking", "Hút Thuốc Lá"),
                 ("Nicotine", "Nicotin"),
@@ -320,14 +343,20 @@ class LLMService:
         match = re.search(r"topic or question:\s*'([^']+)'", prompt, flags=re.IGNORECASE)
         topic = match.group(1) if match else prompt
         
-        # Nhận diện chủ đề tiếng Việt phổ biến để chuyển sang từ khóa tiếng Anh học thuật cho ArXiv
+        # Nhận diện chủ đề tiếng Việt phổ biến để chuyển sang từ khóa tiếng Anh học thuật cho ArXiv / Crossref
         topic_lower = topic.lower()
+        if "điện thoại" in topic_lower or "smartphone" in topic_lower or "màn hình" in topic_lower:
+            return "smartphone screen time mental health cognitive effects adolescents"
+        if "mạng xã hội" in topic_lower or "social media" in topic_lower:
+            return "social media screen time depression anxiety adolescents"
         if "thuốc lá" in topic_lower or "smoking" in topic_lower or "tobacco" in topic_lower:
             return "tobacco smoking nicotine adverse health effects pulmonary cardiovascular"
         if "ung thư" in topic_lower or "cancer" in topic_lower:
             return "cancer oncology clinical trials diagnosis therapy"
         if "tim mạch" in topic_lower or "heart" in topic_lower or "cardio" in topic_lower:
             return "cardiovascular disease heart pathology clinical biomarkers"
+        if "ô nhiễm" in topic_lower or "không khí" in topic_lower:
+            return "air pollution environmental exposure respiratory health"
         if "trí tuệ nhân tạo" in topic_lower or "ai" in topic_lower or "học máy" in topic_lower:
             return "artificial intelligence machine learning deep neural networks"
 

@@ -161,6 +161,10 @@ Respond in JSON:
     def _fallback_search_query(self, topic: str) -> str:
         """Build deterministic academic keywords (English) from the user's topic when LLM is unavailable."""
         topic_lower = topic.lower()
+        if any(k in topic_lower for k in ["điện thoại", "smartphone", "mobile phone", "màn hình", "screen time"]):
+            return "smartphone screen time mental health cognitive effects adolescents"
+        if any(k in topic_lower for k in ["mạng xã hội", "social media", "facebook", "tiktok"]):
+            return "social media screen time depression anxiety adolescents"
         if any(k in topic_lower for k in ["thuốc lá", "smoking", "tobacco", "nicotine"]):
             return "tobacco smoking nicotine adverse health effects"
         if any(k in topic_lower for k in ["ung thư", "cancer", "khối u"]):
@@ -169,6 +173,8 @@ Respond in JSON:
             return "cardiovascular disease heart pathology clinical biomarkers"
         if any(k in topic_lower for k in ["tiểu đường", "diabetes"]):
             return "diabetes mellitus insulin resistance clinical metabolic"
+        if any(k in topic_lower for k in ["ô nhiễm", "khí thải", "môi trường", "không khí"]):
+            return "air pollution environmental exposure respiratory health"
         if any(k in topic_lower for k in ["trí tuệ nhân tạo", "ai", "học máy", "máy học", "machine learning"]):
             return "artificial intelligence machine learning deep neural networks"
 
