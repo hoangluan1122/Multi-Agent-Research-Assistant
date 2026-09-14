@@ -39,6 +39,20 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     DEBUG: bool = True
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug_flag(cls, v: object) -> object:
+        """Chap nhan mot so gia tri moi truong pho bien cho DEBUG."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            normalized = v.strip().lower()
+            if normalized in {"1", "true", "yes", "y", "on", "debug", "development", "dev"}:
+                return True
+            if normalized in {"0", "false", "no", "n", "off", "release", "production", "prod"}:
+                return False
+        return v
+
     # Cấu hình danh sách Origin được phép truy cập CORS
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",

@@ -8,6 +8,11 @@ node_modules/
 dist/
 build/
 
+# Logs
+*.log
+Backend/install-log.txt
+Backend/pip_install_log.txt
+
 # IDE
 .vscode/
 .idea/
