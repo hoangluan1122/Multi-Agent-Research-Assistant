@@ -13,6 +13,7 @@ import { Modal } from '../common/Modal';
 import type { Paper } from '../../types';
 import { Badge } from '../common/Badge';
 import { BookOpen, Cpu, Database, Award, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
+import { useI18n } from '../../i18n/context';
 
 interface PaperAnalysisModalProps {
   paper: Paper | null;
@@ -25,6 +26,7 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useI18n();
   if (!paper) return null;
 
   const analysis = paper.analysis;
@@ -33,7 +35,7 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Phân Tích Chi Tiết Bài Báo (Reading Agent)"
+      title={t.analysisModalTitle}
       subtitle={paper.title}
       maxWidth="4xl"
     >
@@ -42,18 +44,18 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-gray-800/50 border border-gray-700/60">
           <div className="space-y-1">
             <p className="text-gray-400">
-              <span className="font-semibold text-gray-300">Tác giả:</span>{' '}
-              {paper.authors.join(', ') || 'Không rõ'}
+              <span className="font-semibold text-gray-300">{t.authorsLabel}</span>{' '}
+              {paper.authors.join(', ') || 'N/A'}
             </p>
             <div className="flex items-center gap-2 text-[11px] text-gray-400">
-              {paper.year && <span>Năm: {paper.year}</span>}
-              {paper.venue && <span>• Nơi xuất bản: {paper.venue}</span>}
-              <span>• Nguồn: {paper.source}</span>
+              {paper.year && <span>{t.yearLabel} {paper.year}</span>}
+              {paper.venue && <span>• {t.publishedVenue} {paper.venue}</span>}
+              <span>• {t.sourceLabel} {paper.source}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant="primary">Độ liên quan: {(paper.relevance_score * 100).toFixed(0)}%</Badge>
+            <Badge variant="primary">{t.relevanceLabel} {(paper.relevance_score * 100).toFixed(0)}%</Badge>
             {paper.url && (
               <a
                 href={paper.url}
@@ -61,7 +63,7 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
                 rel="noreferrer"
                 className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 font-medium transition-colors"
               >
-                <span>Xem bản gốc</span>
+                <span>{t.viewOriginalPaper}</span>
                 <ExternalLink className="w-3 h-3" />
               </a>
             )}
@@ -72,7 +74,7 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
         {paper.abstract && (
           <div className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 space-y-1.5">
             <h4 className="font-semibold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-indigo-400" /> Tóm tắt (Abstract)
+              <FileText className="w-3.5 h-3.5 text-indigo-400" /> {t.abstractTitle}
             </h4>
             <p className="text-gray-300 leading-relaxed text-xs">{paper.abstract}</p>
           </div>
@@ -84,40 +86,40 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
             {/* Method */}
             <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50 space-y-1.5">
               <h4 className="font-semibold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Cpu className="w-3.5 h-3.5 text-indigo-400" /> Phương pháp & Kiến trúc
+                <Cpu className="w-3.5 h-3.5 text-indigo-400" /> {t.methodologyTitle}
               </h4>
               <p className="text-gray-300 leading-relaxed">
-                {analysis.method || 'Chưa trích xuất được phương pháp.'}
+                {analysis.method || t.notExtractedYet}
               </p>
             </div>
 
             {/* Dataset */}
             <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50 space-y-1.5">
               <h4 className="font-semibold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Database className="w-3.5 h-3.5 text-blue-400" /> Tập dữ liệu (Datasets)
+                <Database className="w-3.5 h-3.5 text-blue-400" /> {t.datasetTitle}
               </h4>
               <p className="text-gray-300 leading-relaxed">
-                {analysis.dataset || 'Chưa trích xuất được tập dữ liệu.'}
+                {analysis.dataset || t.notExtractedYet}
               </p>
             </div>
 
             {/* Results & Metrics */}
             <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50 space-y-1.5">
               <h4 className="font-semibold text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5 text-emerald-400" /> Kết quả & Đánh giá (Metrics)
+                <Award className="w-3.5 h-3.5 text-emerald-400" /> {t.metricsTitle}
               </h4>
               <p className="text-gray-300 leading-relaxed">
-                {analysis.results || analysis.metrics || 'Chưa có thông tin kết quả số liệu.'}
+                {analysis.results || analysis.metrics || t.notExtractedYet}
               </p>
             </div>
 
             {/* Limitations */}
             <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50 space-y-1.5">
               <h4 className="font-semibold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Hạn chế & Hướng phát triển
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> {t.limitationsTitle}
               </h4>
               <p className="text-gray-300 leading-relaxed">
-                {analysis.limitations || 'Không có hạn chế nổi bật được đề cập.'}
+                {analysis.limitations || t.notExtractedYet}
               </p>
             </div>
           </div>
@@ -125,7 +127,7 @@ export const PaperAnalysisModal: React.FC<PaperAnalysisModalProps> = ({
           <div className="p-6 rounded-xl bg-gray-800/30 border border-gray-800 text-center space-y-2">
             <BookOpen className="w-8 h-8 text-gray-500 mx-auto" />
             <p className="text-gray-400">
-              Bài báo này chưa được phân tích sâu bởi Reading Agent.
+              {t.pendingAnalysisBadge}
             </p>
           </div>
         )}

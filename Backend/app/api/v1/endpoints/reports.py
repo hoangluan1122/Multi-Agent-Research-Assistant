@@ -4,7 +4,7 @@ Cung cấp API tra cứu bản thảo báo cáo Literature Review, lịch sử r
 """
 
 import os
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,8 @@ from app.db.session import get_db
 from app.models.report import Report, Review
 from app.models.citation import Citation
 from app.models.session import ResearchSession
+from app.models.user import User
+from app.api.deps import get_current_user_optional, verify_session_access
 from app.services.export_service import export_service
 from app.schemas.report import (
     ReportResponse,
@@ -25,12 +27,25 @@ from app.schemas.report import (
 
 router = APIRouter(prefix="/reports", tags=["Reports & Export (UC009, UC010, UC012)"])
 
+# @trace: REQ-002, REQ-006
 @router.get("/session/{session_id}", response_model=List[ReportResponse])
-async def get_session_reports(session_id: str, db: AsyncSession = Depends(get_db)):
+async def get_session_reports(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Lấy danh sách toàn bộ các phiên bản báo cáo (Report Versions) của một phiên nghiên cứu.
     Bao gồm thông tin bảng so sánh đối chiếu và lịch sử đánh giá phản biện (reviews).
     """
+    s_stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+    s_res = await db.execute(s_stmt)
+    session = s_res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
+
     stmt = (
         select(Report)
         .where(Report.session_id == session_id)
@@ -40,8 +55,13 @@ async def get_session_reports(session_id: str, db: AsyncSession = Depends(get_db
     res = await db.execute(stmt)
     return res.scalars().all()
 
+# @trace: REQ-002, REQ-006
 @router.get("/{report_id}", response_model=ReportResponse)
-async def get_report_detail(report_id: str, db: AsyncSession = Depends(get_db)):
+async def get_report_detail(
+    report_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Xem chi tiết toàn văn nội dung một báo cáo cụ thể (Markdown content, Outline, Review scorecard).
     """
@@ -54,10 +74,22 @@ async def get_report_detail(report_id: str, db: AsyncSession = Depends(get_db)):
     report = res.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    s_stmt = select(ResearchSession).where(ResearchSession.id == report.session_id)
+    s_res = await db.execute(s_stmt)
+    session = s_res.scalar_one_or_none()
+    if session:
+        verify_session_access(session, current_user)
+
     return report
 
+# @trace: REQ-002, REQ-006
 @router.get("/{report_id}/citations", response_model=List[CitationResponse])
-async def get_report_citations(report_id: str, db: AsyncSession = Depends(get_db)):
+async def get_report_citations(
+    report_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Lấy danh mục các tài liệu trích dẫn tham khảo chuẩn hóa (Citation list) gắn liền với báo cáo.
     """
@@ -67,28 +99,48 @@ async def get_report_citations(report_id: str, db: AsyncSession = Depends(get_db
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
 
+    s_stmt = select(ResearchSession).where(ResearchSession.id == report.session_id)
+    s_res = await db.execute(s_stmt)
+    session = s_res.scalar_one_or_none()
+    if session:
+        verify_session_access(session, current_user)
+
     c_stmt = select(Citation).where(Citation.session_id == report.session_id)
     c_res = await db.execute(c_stmt)
     return c_res.scalars().all()
 
+# @trace: REQ-002, REQ-005, REQ-006
 @router.post("/{report_id}/export")
 async def export_report_file(
     report_id: str,
     payload: ExportRequest,
+    current_user: Optional[User] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
     UC012: Xuất bản và tải về file báo cáo nghiên cứu hoàn chỉnh.
-    Hỗ trợ 3 định dạng:
-    - `markdown`: File .md nguyên bản kèm cấu trúc chuẩn.
-    - `docx`: File Microsoft Word (.docx) được tạo động qua python-docx.
-    - `pdf`: File PDF chuẩn in ấn qua WeasyPrint hoặc ReportLab.
+    Điều kiện xuất báo cáo:
+    1. Kiểm tra quyền sở hữu phiên nghiên cứu (Multi-user Isolation).
+    2. Báo cáo bắt buộc phải đạt tiêu chuẩn thẩm định (review_status == 'PASS').
     """
     stmt = select(Report).where(Report.id == report_id)
     res = await db.execute(stmt)
     report = res.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    s_stmt = select(ResearchSession).where(ResearchSession.id == report.session_id)
+    s_res = await db.execute(s_stmt)
+    session = s_res.scalar_one_or_none()
+    if session:
+        verify_session_access(session, current_user)
+
+    # Kiểm tra điều kiện thẩm định chất lượng (PASS-only)
+    if report.review_status != "PASS":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Báo cáo chưa đạt tiêu chuẩn thẩm định chất lượng (Trạng thái hiện tại: {report.review_status}). Chỉ các báo cáo có kết quả PASS mới đủ điều kiện xuất bản."
+        )
 
     format_choice = payload.format.lower()
     file_path = None

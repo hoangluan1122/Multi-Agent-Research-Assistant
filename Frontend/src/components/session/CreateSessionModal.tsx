@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import { Sparkles, Calendar, Layers, CheckSquare, Square, Loader2 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import type { SessionCreate } from '../../types';
+import { useI18n } from '../../i18n/context';
 
 interface CreateSessionModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
   onClose,
   onSubmit,
 }) => {
+  const { t } = useI18n();
   const [topic, setTopic] = useState('');
   const [researchQuestion, setResearchQuestion] = useState('');
   const [yearStart, setYearStart] = useState<number>(2020);
@@ -68,22 +70,22 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Tạo Phiên Nghiên Cứu Mới"
-      subtitle="Thiết lập đề tài và tiêu chí để hệ thống Multi-Agent tự động tìm kiếm & tổng hợp"
+      title={t.createSessionModalTitle}
+      subtitle={t.createSessionModalSubtitle}
       maxWidth="2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Topic */}
         <div>
           <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
-            Chủ đề nghiên cứu <span className="text-rose-400">*</span>
+            {t.topicLabel} <span className="text-rose-400">*</span>
           </label>
           <input
             type="text"
             required
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="Ví dụ: Deep Learning for Medical Image Segmentation"
+            placeholder={t.topicPlaceholder}
             className="w-full bg-gray-800/80 text-sm text-gray-100 px-3.5 py-2.5 rounded-xl border border-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none placeholder-gray-500 transition-all"
           />
         </div>
@@ -91,13 +93,13 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
         {/* Research Question */}
         <div>
           <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
-            Câu hỏi nghiên cứu cụ thể (Tùy chọn)
+            {t.questionLabel} {t.questionOptional}
           </label>
           <textarea
             rows={2}
             value={researchQuestion}
             onChange={(e) => setResearchQuestion(e.target.value)}
-            placeholder="Ví dụ: Những kiến trúc Transformer nào đạt hiệu năng cao nhất trên tập dữ liệu y tế?"
+            placeholder={t.questionPlaceholder}
             className="w-full bg-gray-800/80 text-sm text-gray-100 px-3.5 py-2.5 rounded-xl border border-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none placeholder-gray-500 transition-all resize-none"
           />
         </div>
@@ -108,7 +110,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-              Từ năm
+              {t.yearFromPlaceholder}
             </label>
             <input
               type="number"
@@ -123,7 +125,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-              Đến năm
+              {t.yearToPlaceholder}
             </label>
             <input
               type="number"
@@ -139,7 +141,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
           <div>
             <label className="block text-xs font-medium text-gray-400 mb-1 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-indigo-400" />
-              Số bài tối đa
+              {t.maxPapersLabel}
             </label>
             <input
               type="number"
@@ -157,7 +159,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
           {/* Sources */}
           <div>
             <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-              Nguồn dữ liệu học thuật
+              {t.sourcesSelectionLabel}
             </label>
             <div className="flex flex-col gap-2">
               {[
@@ -190,7 +192,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
           {/* Citation Style */}
           <div>
             <label className="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-              Chuẩn trích dẫn học thuật
+              {t.citationStyleLabel}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {['IEEE', 'APA', 'ACM', 'Harvard'].map((style) => (
@@ -218,7 +220,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           >
-            Hủy
+            {t.cancelBtn}
           </button>
           <button
             type="submit"
@@ -228,12 +230,12 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang khởi tạo...</span>
+                <span>{t.workflowRunning}</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                <span>Bắt đầu phiên nghiên cứu</span>
+                <span>{t.submitCreateSessionBtn}</span>
               </>
             )}
           </button>

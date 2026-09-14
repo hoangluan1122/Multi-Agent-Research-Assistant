@@ -12,10 +12,11 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.db.session import AsyncSessionLocal
 from app.models.session import ResearchSession
 from app.models.paper import Paper
+from app.models.report import Report
 from app.agents.search_agent import search_agent
 from app.agents.reading_agent import reading_agent
 from app.agents.summarization_agent import summarization_agent
@@ -96,7 +97,7 @@ class ResearchWorkflowEngine:
                 # =========================================================================
                 # BƯỚC 3: Summarization Agent (Tổng hợp & Tạo bảng so sánh đối chiếu - UC006, UC007)
                 # =========================================================================
-                await self._notify(session_id, "RUNNING", "SUMMARIZING_AND_COMPARING", 70, "SummarizationAgent đang tổng hợp và lập ma trận so sánh...", "SummarizationAgent")
+                await self._notify(session_id, "RUNNING", "SUMMARIZING_AND_COMPARING", 65, "SummarizationAgent đang tổng hợp và lập ma trận so sánh...", "SummarizationAgent")
                 summary_res = await summarization_agent.run(
                     db=db,
                     session_id=session_id
@@ -105,17 +106,7 @@ class ResearchWorkflowEngine:
                 synthesized_summary = summary_res.get("synthesized_summary", "")
 
                 # =========================================================================
-                # BƯỚC 4: Citation Agent (Quản lý và định dạng trích dẫn chuẩn - UC008)
-                # =========================================================================
-                await self._notify(session_id, "RUNNING", "FORMATTING_CITATIONS", 78, f"CitationAgent đang tạo danh mục trích dẫn chuẩn {citation_style}...", "CitationAgent")
-                await citation_agent.run(
-                    db=db,
-                    session_id=session_id,
-                    style=citation_style
-                )
-
-                # =========================================================================
-                # BƯỚC 5 & 6: Vòng lặp Soạn thảo & Thẩm định phản biện (Writing & Review Loop - UC009, UC010, UC011)
+                # BƯỚC 4 & 5: Vòng lặp Soạn thảo & Thẩm định phản biện (Writing & Review Loop - UC009, UC010, UC011)
                 # =========================================================================
                 retry_count = 0
                 max_retries = settings.MAX_REVIEW_RETRIES
@@ -123,13 +114,20 @@ class ResearchWorkflowEngine:
                 latest_report_id = None
                 feedback = None
 
+                # @trace: REQ-003
+                # Xác định số version tiếp theo từ DB để đảm bảo không bao giờ trùng lặp version
+                max_v_stmt = select(func.max(Report.version)).where(Report.session_id == session_id)
+                current_max_v = (await db.execute(max_v_stmt)).scalar() or 0
+                current_version = current_max_v
+
                 while retry_count <= max_retries and not is_passed:
-                    version = retry_count + 1
+                    current_version += 1
+                    version = current_version
                     await self._notify(
                         session_id,
                         "RUNNING",
                         "WRITING_DRAFT",
-                        85,
+                        75,
                         f"WritingAgent đang soạn thảo Literature Review (Bản #{version})...",
                         "WritingAgent"
                     )
@@ -150,7 +148,7 @@ class ResearchWorkflowEngine:
                         session_id,
                         "REVIEWING",
                         "REVIEWING_REPORT",
-                        92,
+                        85,
                         f"ReviewAgent đang thẩm định độ tin cậy và kiểm tra hallucination...",
                         "ReviewAgent"
                     )
@@ -171,10 +169,20 @@ class ResearchWorkflowEngine:
                             session_id,
                             "RUNNING",
                             "REVISING_WORKFLOW",
-                            82,
+                            70,
                             f"ReviewAgent yêu cầu sửa: {feedback[:100]}... (Thực hiện lần sửa {retry_count}/{max_retries})",
                             "ReviewAgent"
                         )
+
+                # =========================================================================
+                # BƯỚC 6: Citation Agent (Quản lý và định dạng trích dẫn chuẩn - UC008)
+                # =========================================================================
+                await self._notify(session_id, "RUNNING", "FORMATTING_CITATIONS", 95, f"CitationAgent đang kiểm chứng và định dạng danh mục trích dẫn {citation_style}...", "CitationAgent")
+                await citation_agent.run(
+                    db=db,
+                    session_id=session_id,
+                    style=citation_style
+                )
 
                 # Cập nhật trạng thái hoàn thành phiên
                 session.status = "COMPLETED"

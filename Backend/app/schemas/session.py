@@ -5,12 +5,13 @@ Pydantic Schemas liên quan đến Phiên nghiên cứu (ResearchSession).
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+# @trace: REQ-001
 class SessionCreate(BaseModel):
-    """Schema dữ liệu đầu vào khi người dùng tạo mới một phiên nghiên cứu."""
+    """Schema dữ liệu đầu vào khi người dùng tạo mới một phiên nghiên cứu (UC001)."""
     topic: str = Field(..., min_length=3, max_length=500, description="Chủ đề nghiên cứu khoa học")
-    research_question: Optional[str] = Field(None, description="Câu hỏi nghiên cứu chi tiết cần giải quyết")
+    research_question: Optional[str] = Field(None, max_length=2000, description="Câu hỏi nghiên cứu chi tiết cần giải quyết")
     year_start: Optional[int] = Field(None, ge=1990, le=2030, description="Năm bắt đầu lọc paper")
     year_end: Optional[int] = Field(None, ge=1990, le=2030, description="Năm kết thúc lọc paper")
     max_papers: Optional[int] = Field(10, ge=1, le=50, description="Số lượng bài báo tối đa")
@@ -18,15 +19,31 @@ class SessionCreate(BaseModel):
     citation_style: Optional[str] = Field("IEEE", description="Định dạng trích dẫn (IEEE / APA)")
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Các tham số bổ sung khác")
 
+    @field_validator("citation_style")
+    @classmethod
+    def validate_citation_style(cls, v: Optional[str]) -> Optional[str]:
+        if v and v.upper() not in ["IEEE", "APA"]:
+            raise ValueError("Định dạng trích dẫn chỉ chấp nhận 'IEEE' hoặc 'APA'")
+        return v.upper() if v else "IEEE"
+
+    @model_validator(mode="after")
+    def validate_years(self) -> "SessionCreate":
+        if self.year_start is not None and self.year_end is not None:
+            if self.year_start > self.year_end:
+                raise ValueError("Năm bắt đầu (year_start) không được lớn hơn năm kết thúc (year_end)")
+        return self
+
+# @trace: REQ-001
 class SessionUpdate(BaseModel):
     """Schema dữ liệu cho phép cập nhật chủ đề hoặc câu hỏi nghiên cứu của phiên."""
-    topic: Optional[str] = None
-    research_question: Optional[str] = None
+    topic: Optional[str] = Field(None, min_length=3, max_length=500)
+    research_question: Optional[str] = Field(None, max_length=2000)
     parameters: Optional[Dict[str, Any]] = None
 
 class SessionResponse(BaseModel):
     """Schema dữ liệu trả về thông tin tóm tắt của một phiên nghiên cứu."""
     id: str
+    user_id: Optional[str] = None
     topic: str
     research_question: Optional[str] = None
     parameters: Dict[str, Any] = {}

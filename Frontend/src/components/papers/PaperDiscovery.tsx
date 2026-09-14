@@ -20,16 +20,25 @@ import type { Session, Paper } from '../../types';
 import { PaperCard } from './PaperCard';
 import { PaperAnalysisModal } from './PaperAnalysisModal';
 import { PdfUploadModal } from './PdfUploadModal';
+import { useI18n } from '../../i18n/context';
 
 interface PaperDiscoveryProps {
   session: Session;
   papers: Paper[];
   isLoading?: boolean;
-  onSearchPapers: (query: string, maxResults: number, sources: string[]) => Promise<void>;
+  onSearchPapers: (
+    query: string,
+    maxResults: number,
+    sources: string[],
+    yearStart?: number,
+    yearEnd?: number
+  ) => Promise<void>;
   onUploadPaper: (file: File) => Promise<void>;
   onToggleSelectPaper: (paper: Paper) => Promise<void>;
   onBatchSelectPapers: (isSelected: boolean) => Promise<void>;
   onAnalyzePaper: (paperId: string) => Promise<void>;
+  onTranslatePaper?: (paperId: string) => Promise<void>;
+  onTranslateAllPapers?: () => Promise<void>;
 }
 
 export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
@@ -40,11 +49,17 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
   onToggleSelectPaper,
   onBatchSelectPapers,
   onAnalyzePaper,
+  onTranslatePaper,
+  onTranslateAllPapers,
 }) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState(session.topic);
   const [maxResults, setMaxResults] = useState(5);
   const [sources, setSources] = useState<string[]>(['arxiv', 'semantic_scholar']);
+  const [yearStart, setYearStart] = useState<string>('');
+  const [yearEnd, setYearEnd] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isTranslatingAll, setIsTranslatingAll] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedAnalysisPaper, setSelectedAnalysisPaper] = useState<Paper | null>(null);
   const [isAnalysisOpen, setIsAnalysisOpen] = useState(false);
@@ -63,7 +78,13 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
 
     setIsSearching(true);
     try {
-      await onSearchPapers(query.trim(), maxResults, sources);
+      await onSearchPapers(
+        query.trim(),
+        maxResults,
+        sources,
+        yearStart ? parseInt(yearStart, 10) : undefined,
+        yearEnd ? parseInt(yearEnd, 10) : undefined
+      );
     } finally {
       setIsSearching(false);
     }
@@ -91,10 +112,10 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Search className="w-4 h-4 text-indigo-400" />
-              Khám Phá & Thu Thập Tài Liệu Học Thuật
+              {t.discoveryTitle}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              Tìm kiếm các công bố khoa học mới nhất từ kho arXiv và Semantic Scholar
+              {t.discoveryDesc}
             </p>
           </div>
 
@@ -103,7 +124,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-indigo-300 hover:text-white border border-gray-700 text-xs font-semibold transition-all shadow-sm shrink-0"
           >
             <UploadCloud className="w-4 h-4" />
-            <span>Tải Lên PDF Riêng</span>
+            <span>{t.uploadPdfBtn}</span>
           </button>
         </div>
 
@@ -116,7 +137,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Nhập từ khóa tìm kiếm (Ví dụ: Medical image segmentation transformer)..."
+                placeholder={t.searchPlaceholder}
                 className="w-full bg-gray-800/80 text-sm text-gray-100 pl-10 pr-4 py-2.5 rounded-xl border border-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-none placeholder-gray-500 transition-all"
               />
             </div>
@@ -129,12 +150,12 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
               {isSearching ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Đang tìm kiếm...</span>
+                  <span>{t.searchingBtn}</span>
                 </>
               ) : (
                 <>
                   <Search className="w-4 h-4" />
-                  <span>Tìm bài báo</span>
+                  <span>{t.searchBtn}</span>
                 </>
               )}
             </button>
@@ -144,7 +165,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
             <div className="flex flex-wrap items-center gap-4">
               <span className="text-gray-400 font-medium flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5 text-indigo-400" /> Nguồn tìm kiếm:
+                <Filter className="w-3.5 h-3.5 text-indigo-400" /> {t.sourcesLabel}
               </span>
 
               {[
@@ -174,17 +195,37 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
               })}
             </div>
 
+            {/* Year Filters */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-400">{t.yearLabel}</span>
+              <input
+                type="number"
+                value={yearStart}
+                onChange={(e) => setYearStart(e.target.value)}
+                placeholder={t.yearFromPlaceholder}
+                className="w-16 bg-gray-800 text-xs text-gray-200 px-2 py-1 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+              />
+              <span className="text-gray-500">-</span>
+              <input
+                type="number"
+                value={yearEnd}
+                onChange={(e) => setYearEnd(e.target.value)}
+                placeholder={t.yearToPlaceholder}
+                className="w-16 bg-gray-800 text-xs text-gray-200 px-2 py-1 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none placeholder-gray-500"
+              />
+            </div>
+
             <div className="flex items-center gap-2">
-              <span className="text-gray-400">Số lượng kết quả:</span>
+              <span className="text-gray-400">{t.maxResultsLabel}</span>
               <select
                 value={maxResults}
                 onChange={(e) => setMaxResults(Number(e.target.value))}
                 className="bg-gray-800 text-xs text-gray-200 px-2.5 py-1 rounded-lg border border-gray-700 focus:border-indigo-500 focus:outline-none"
               >
-                <option value={3}>3 bài</option>
-                <option value={5}>5 bài</option>
-                <option value={10}>10 bài</option>
-                <option value={15}>15 bài</option>
+                <option value={3}>3 {t.papersCountUnit}</option>
+                <option value={5}>5 {t.papersCountUnit}</option>
+                <option value={10}>10 {t.papersCountUnit}</option>
+                <option value={15}>15 {t.papersCountUnit}</option>
               </select>
             </div>
           </div>
@@ -195,26 +236,49 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">
-            Danh Sách Bài Báo Trong Phiên ({papers.length})
+            {t.papersInSession} ({papers.length})
           </h3>
           <span className="text-xs text-indigo-400 font-medium">
-            (Đã chọn: {selectedCount}/{papers.length})
+            ({t.selectedCount}: {selectedCount}/{papers.length})
           </span>
         </div>
 
         {papers.length > 0 && (
-          <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {onTranslateAllPapers && (
+              <button
+                onClick={async () => {
+                  setIsTranslatingAll(true);
+                  try {
+                    await onTranslateAllPapers();
+                  } finally {
+                    setIsTranslatingAll(false);
+                  }
+                }}
+                disabled={isTranslatingAll}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 hover:text-white border border-indigo-500/50 font-medium transition-all shadow-sm disabled:opacity-50"
+              >
+                {isTranslatingAll ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>{t.translatingAllBtn}</span>
+                  </>
+                ) : (
+                  <span>{t.translateAllBtn}</span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => onBatchSelectPapers(true)}
               className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white border border-gray-700 transition-colors"
             >
-              Chọn tất cả
+              {t.selectAllBtn}
             </button>
             <button
               onClick={() => onBatchSelectPapers(false)}
               className="px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white border border-gray-700 transition-colors"
             >
-              Bỏ chọn tất cả
+              {t.deselectAllBtn}
             </button>
           </div>
         )}
@@ -226,10 +290,10 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
           <FileText className="w-10 h-10 text-gray-600 mx-auto" />
           <div className="space-y-1">
             <p className="text-sm font-semibold text-gray-300">
-              Chưa có tài liệu nào trong phiên này
+              {t.noPapersInSession}
             </p>
             <p className="text-xs text-gray-500 max-w-md mx-auto">
-              Nhập từ khóa phía trên để tìm kiếm trên arXiv / Semantic Scholar, hoặc tải lên file PDF của bạn.
+              {t.noPapersInSessionDesc}
             </p>
           </div>
         </div>
@@ -241,6 +305,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
               paper={paper}
               onToggleSelect={onToggleSelectPaper}
               onViewAnalysis={handleOpenAnalysis}
+              onTranslate={onTranslatePaper}
             />
           ))}
         </div>

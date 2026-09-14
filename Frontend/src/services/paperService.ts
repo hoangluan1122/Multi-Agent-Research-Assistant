@@ -57,5 +57,17 @@ export const paperService = {
     });
     return response.data;
   },
+
+  /** Dịch tiêu đề và tóm tắt của một bài báo sang Tiếng Việt */
+  async translatePaper(paperId: string): Promise<Paper> {
+    const response = await apiClient.post<Paper>(`/api/v1/papers/${paperId}/translate`);
+    return response.data;
+  },
+
+  /** Dịch toàn bộ bài báo trong một phiên sang Tiếng Việt */
+  async translateAllPapers(sessionId: string): Promise<Paper[]> {
+    const response = await apiClient.post<Paper[]>(`/api/v1/papers/session/${sessionId}/translate-all`);
+    return response.data;
+  },
 };
 

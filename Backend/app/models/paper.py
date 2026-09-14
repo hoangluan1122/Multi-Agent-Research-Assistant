@@ -51,9 +51,9 @@ class Paper(Base):
 
     # Các mối quan hệ (Relationships)
     session = relationship("ResearchSession", back_populates="papers")
-    analysis = relationship("PaperAnalysis", back_populates="paper", uselist=False, cascade="all, delete-orphan")
-    chunks = relationship("DocumentChunk", back_populates="paper", cascade="all, delete-orphan")
-    citations = relationship("Citation", back_populates="paper", cascade="all, delete-orphan")
+    analysis = relationship("PaperAnalysis", back_populates="paper", uselist=False, cascade="all, delete-orphan", lazy="selectin")
+    chunks = relationship("DocumentChunk", back_populates="paper", cascade="all, delete-orphan", lazy="selectin")
+    citations = relationship("Citation", back_populates="paper", cascade="all, delete-orphan", lazy="selectin")
 
 
 class PaperAnalysis(Base):

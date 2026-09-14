@@ -36,10 +36,18 @@ import { WorkflowDashboard } from './components/workflow/WorkflowDashboard';
 import { PaperDiscovery } from './components/papers/PaperDiscovery';
 import { ReportView } from './components/reports/ReportView';
 import { SettingsModal } from './components/settings/SettingsModal';
+import { AuthModal } from './components/auth/AuthModal';
 import { ToastContainer } from './components/common/Toast';
 import type { ToastMessage } from './components/common/Toast';
+import { useI18n } from './i18n/context';
+import { useAuth } from './context/AuthContext';
+import { Welcome } from './components/Welcome';
 
 export function App() {
+  const { t, language } = useI18n();
+  const { user } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(true);
+
   // State quản lý dữ liệu toàn cục
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
@@ -55,6 +63,7 @@ export function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -82,8 +91,12 @@ export function App() {
       setConfig(sysConfig);
       setBackendHealthy(true);
 
-      if (sessionList.length > 0 && !activeSession) {
-        setActiveSession(sessionList[0]);
+      if (sessionList.length > 0) {
+        if (!activeSession || !sessionList.some((s) => s.id === activeSession.id)) {
+          setActiveSession(sessionList[0]);
+        }
+      } else {
+        setActiveSession(null);
       }
     } catch (err: any) {
       setBackendHealthy(false);
@@ -93,7 +106,7 @@ export function App() {
 
   useEffect(() => {
     loadInitialData();
-  }, [loadInitialData]);
+  }, [user]);
 
   // 2. Load Session Details (Papers, Reports, Citations, Workflow Status)
   const loadSessionDetails = useCallback(async (session: Session) => {
@@ -135,16 +148,12 @@ export function App() {
   // 3. Workflow Real-time Polling
   // NOTE: Backend trả status UPPERCASE (RUNNING, COMPLETED, FAILED),
   // nên phải .toLowerCase() trước khi so sánh
-  const wfStatusNorm = workflowStatus?.status?.toLowerCase();
-  const sessionStatusNorm = activeSession?.status?.toLowerCase();
+  const wfStatusStr = (workflowStatus?.status || '').toLowerCase();
+  const sessionStatusStr = (activeSession?.status || '').toLowerCase();
+
   const isWorkflowRunning =
-    wfStatusNorm === 'running' ||
-    sessionStatusNorm === 'running' ||
-    sessionStatusNorm === 'searching' ||
-    sessionStatusNorm === 'reading' ||
-    sessionStatusNorm === 'summarizing' ||
-    sessionStatusNorm === 'drafting' ||
-    sessionStatusNorm === 'reviewing';
+    wfStatusStr === 'running' ||
+    ['searching', 'reading', 'summarizing', 'drafting', 'reviewing', 'running'].includes(sessionStatusStr);
 
   useEffect(() => {
     if (!activeSession || !isWorkflowRunning) {
@@ -158,16 +167,15 @@ export function App() {
         setWorkflowStatus(status);
 
         // Normalize status về lowercase để so sánh an toàn
-        const normalizedStatus = status.status?.toLowerCase();
-
-        if (normalizedStatus === 'completed') {
+        const currentWfStatus = (status.status || '').toLowerCase();
+        if (currentWfStatus === 'completed') {
           addToast('success', 'Quy trình Multi-Agent đã hoàn thành thành công!');
           // Refresh session details & session list
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
           loadSessionDetails(updatedSession);
           sessionService.getSessions().then(setSessions);
-        } else if (normalizedStatus === 'failed') {
+        } else if (currentWfStatus === 'failed') {
           addToast('error', `Quy trình bị lỗi: ${status.error_message || 'Không rõ'}`);
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
@@ -253,7 +261,9 @@ export function App() {
   const handleSearchPapers = async (
     query: string,
     maxResults: number,
-    sources: string[]
+    sources: string[],
+    yearStart?: number,
+    yearEnd?: number
   ) => {
     if (!activeSession) return;
 
@@ -263,6 +273,8 @@ export function App() {
         query,
         max_results: maxResults,
         sources,
+        year_start: yearStart,
+        year_end: yearEnd,
       });
       setPapers((prev) => {
         const existingIds = new Set(prev.map((p) => p.id));
@@ -324,6 +336,29 @@ export function App() {
     }
   };
 
+  // Handler: Translate Single Paper
+  const handleTranslatePaper = async (paperId: string) => {
+    try {
+      const translated = await paperService.translatePaper(paperId);
+      setPapers((prev) => prev.map((p) => (p.id === paperId ? translated : p)));
+      addToast('success', 'Đã dịch tiêu đề và tóm tắt bài báo sang Tiếng Việt!');
+    } catch (err: any) {
+      addToast('error', `Dịch bài báo thất bại: ${err.message}`);
+    }
+  };
+
+  // Handler: Translate All Papers
+  const handleTranslateAllPapers = async () => {
+    if (!activeSession) return;
+    try {
+      const translatedList = await paperService.translateAllPapers(activeSession.id);
+      setPapers(translatedList);
+      addToast('success', `Đã dịch toàn bộ ${translatedList.length} bài báo sang Tiếng Việt!`);
+    } catch (err: any) {
+      addToast('error', `Dịch danh sách thất bại: ${err.message}`);
+    }
+  };
+
   // Handler: Export Report
   const handleExportReport = async (format: 'markdown' | 'docx' | 'pdf') => {
     if (!report) return;
@@ -375,7 +410,9 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans">
+    <div className="pf-app min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans">
+      {showWelcome && <Welcome signedIn={!!user} onAuth={() => setIsAuthOpen(true)} onSettings={() => setIsSettingsModalOpen(true)} onWorkspace={() => setShowWelcome(false)} onStart={() => { setShowWelcome(false); setIsCreateModalOpen(true); }} />}
+      {!showWelcome && <>
       {/* Top Navigation Header */}
       <Header
         currentSession={activeSession}
@@ -383,11 +420,12 @@ export function App() {
         backendHealthy={backendHealthy}
         onOpenCreateSession={() => setIsCreateModalOpen(true)}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
       />
 
       {/* Main Workspace Layout */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
+      <div className="pf-workspace flex-1 flex w-full mx-auto">
         {/* Sidebar */}
         <Sidebar
           sessions={sessions}
@@ -400,11 +438,12 @@ export function App() {
         />
 
         {/* Content Area */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+        <main className="pf-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+          <button className="pf-workspace-home" onClick={() => setShowWelcome(true)}>← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}</button>
           {activeSession ? (
             <div className="space-y-6 max-w-5xl mx-auto">
               {/* Tab Navigation */}
-              <div className="flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
+              <div className="pf-tabs flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
                 <button
                   onClick={() => setActiveTab('workflow')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -414,7 +453,7 @@ export function App() {
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Điều Phối Multi-Agent</span>
+                  <span>{t.tabWorkflow}</span>
                 </button>
 
                 <button
@@ -426,7 +465,7 @@ export function App() {
                   }`}
                 >
                   <Search className="w-3.5 h-3.5" />
-                  <span>Tài Liệu ({papers.length})</span>
+                  <span>{t.tabPapers} ({papers.length})</span>
                 </button>
 
                 <button
@@ -438,7 +477,7 @@ export function App() {
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Báo Cáo Tổng Quan</span>
+                  <span>{t.tabReport}</span>
                 </button>
               </div>
 
@@ -466,6 +505,8 @@ export function App() {
                   onToggleSelectPaper={handleToggleSelectPaper}
                   onBatchSelectPapers={handleBatchSelectPapers}
                   onAnalyzePaper={handleAnalyzePaper}
+                  onTranslatePaper={handleTranslatePaper}
+                  onTranslateAllPapers={handleTranslateAllPapers}
                 />
               )}
 
@@ -489,9 +530,9 @@ export function App() {
                 <FolderPlus className="w-8 h-8" />
               </div>
               <div className="space-y-1 max-w-md">
-                <h3 className="text-xl font-bold text-white">Bắt đầu nghiên cứu với PaperFlow</h3>
+                <h3 className="text-xl font-bold text-white">{t.emptyTitle}</h3>
                 <p className="text-xs text-gray-400 leading-relaxed">
-                  Tạo một phiên nghiên cứu mới để hệ thống 6 AI Agents tự động tìm kiếm, phân tích tài liệu và soạn thảo bài Literature Review chuyên sâu.
+                  {t.emptyDesc}
                 </p>
               </div>
               <button
@@ -499,12 +540,13 @@ export function App() {
                 className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-bold shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
               >
                 <Sparkles className="w-4 h-4" />
-                <span>Tạo Phiên Nghiên Cứu Mới</span>
+                <span>{t.emptyBtn}</span>
               </button>
             </div>
           )}
         </main>
       </div>
+      </>}
 
       {/* Global Modals */}
       <CreateSessionModal
@@ -519,6 +561,11 @@ export function App() {
         config={config}
         onSave={handleSaveConfig}
         onTestLlm={() => configService.testLlm()}
+      />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
       />
 
       {/* Toast Notifications Container */}

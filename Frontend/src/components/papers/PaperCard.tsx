@@ -6,29 +6,47 @@
  * - Nút xem chi tiết cấu trúc (View Analysis) nếu đã qua xử lý bởi ReadingAgent.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   CheckSquare,
   Square,
   ExternalLink,
   BookOpen,
   Sparkles,
+  Languages,
+  Loader2,
 } from 'lucide-react';
 import type { Paper } from '../../types';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface PaperCardProps {
   paper: Paper;
   onToggleSelect: (paper: Paper) => void;
   onViewAnalysis: (paper: Paper) => void;
   onRunAnalysis?: (paper: Paper) => void;
+  onTranslate?: (paperId: string) => Promise<void>;
 }
 
 export const PaperCard: React.FC<PaperCardProps> = ({
   paper,
   onToggleSelect,
   onViewAnalysis,
+  onTranslate,
 }) => {
+  const { t } = useI18n();
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleTranslate = async () => {
+    if (!onTranslate) return;
+    setIsTranslating(true);
+    try {
+      await onTranslate(paper.id);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
   const getSourceBadge = (source: string) => {
     switch (source.toLowerCase()) {
       case 'arxiv':
@@ -36,7 +54,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
       case 'semantic_scholar':
         return <Badge variant="info">Semantic Scholar</Badge>;
       case 'upload':
-        return <Badge variant="success">Uploaded PDF</Badge>;
+        return <Badge variant="success">{t.uploadedPdfBadge}</Badge>;
       default:
         return <Badge variant="neutral">{source}</Badge>;
     }
@@ -61,7 +79,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
               </span>
             )}
             <Badge variant="neutral">
-              Điểm liên quan: {(paper.relevance_score * 100).toFixed(0)}%
+              {t.relevanceLabel} {(paper.relevance_score * 100).toFixed(0)}%
             </Badge>
           </div>
 
@@ -69,7 +87,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
           <button
             onClick={() => onToggleSelect(paper)}
             className="text-gray-400 hover:text-white transition-colors"
-            title={paper.is_selected ? 'Bỏ chọn đưa vào bài tổng quan' : 'Chọn đưa vào bài tổng quan'}
+            title={paper.is_selected ? t.deselectAllBtn : t.selectAllBtn}
           >
             {paper.is_selected ? (
               <CheckSquare className="w-5 h-5 text-indigo-400" />
@@ -86,8 +104,8 @@ export const PaperCard: React.FC<PaperCardProps> = ({
 
         {/* Authors & Venue */}
         <p className="text-[11px] text-gray-400 line-clamp-1">
-          <span className="font-semibold text-gray-300">Tác giả:</span>{' '}
-          {paper.authors.length > 0 ? paper.authors.join(', ') : 'Không rõ tác giả'}
+          <span className="font-semibold text-gray-300">{t.authorsLabel}</span>{' '}
+          {paper.authors.length > 0 ? paper.authors.join(', ') : 'N/A'}
         </p>
 
         {/* Abstract snippet */}
@@ -99,25 +117,41 @@ export const PaperCard: React.FC<PaperCardProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-800/80 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-800/80 text-xs">
         {/* Analysis Status */}
         <div>
           {paper.analysis ? (
             <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
-              <Sparkles className="w-3 h-3" /> Đã phân tích sâu
+              <Sparkles className="w-3 h-3" /> {t.analyzedBadge}
             </span>
           ) : (
-            <span className="text-[11px] text-gray-500">Chưa phân tích sâu</span>
+            <span className="text-[11px] text-gray-500">{t.pendingAnalysisBadge}</span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
+          {onTranslate && (
+            <button
+              onClick={handleTranslate}
+              disabled={isTranslating}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-indigo-300 border border-gray-700/60 font-medium text-xs transition-colors disabled:opacity-50"
+              title="Dịch tiêu đề và tóm tắt sang Tiếng Việt"
+            >
+              {isTranslating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+              ) : (
+                <Languages className="w-3.5 h-3.5" />
+              )}
+              <span>{isTranslating ? t.translatingCardBtn : t.translateCardBtn}</span>
+            </button>
+          )}
+
           <button
             onClick={() => onViewAnalysis(paper)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-indigo-300 hover:text-white border border-gray-700/60 font-medium text-xs transition-colors"
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Xem phân tích</span>
+            <span>{t.viewAnalysisBtn}</span>
           </button>
 
           {paper.url && (
@@ -126,7 +160,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
               target="_blank"
               rel="noreferrer"
               className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-gray-800 transition-colors"
-              title="Mở bài báo gốc"
+              title={t.openOriginalLink}
             >
               <ExternalLink className="w-4 h-4" />
             </a>

@@ -1,9 +1,34 @@
+version: '3.8'
+
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: paperflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: paperflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d paperflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   qdrant:
-    image: qdrant/qdrant@sha256:12364fe851b9f17356fc88189fc06d1b521262e04659ec7345975b00c9246a10
-    container_name: paperflow-qdrant
+    image: qdrant/qdrant:latest
+    container_name: paperflow_qdrant
     restart: unless-stopped
     ports:
-      - "127.0.0.1:6333:6333"
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - ./qdrant_storage:/qdrant/storage
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  postgres_data:
+  qdrant_data:

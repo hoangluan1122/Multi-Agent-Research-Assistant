@@ -1,15 +1,9 @@
-/**
- * Component Modal Danh Mục Trích Dẫn (Citation List Modal - UC008):
- * - Hiển thị toàn bộ danh sách trích dẫn đã chuẩn hóa theo quy chuẩn IEEE/APA.
- * - Hiển thị trạng thái xác thực nguồn (VERIFIED / UNVERIFIED).
- * - Cung cấp nút sao chép trích dẫn nhanh vào Clipboard.
- */
-
 import React from 'react';
 import { Modal } from '../common/Modal';
 import type { Citation } from '../../types';
 import { Copy, Check } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface CitationListModalProps {
   citations: Citation[];
@@ -22,6 +16,7 @@ export const CitationListModal: React.FC<CitationListModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
 
   const copyCitation = (text: string, id: string) => {
@@ -34,14 +29,14 @@ export const CitationListModal: React.FC<CitationListModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Danh Mục Trích Dẫn Đã Xác Thực (Citation Agent)"
-      subtitle={`Tổng cộng ${citations.length} nguồn trích dẫn được liên kết chính xác với các luận điểm`}
+      title={t.citationsModalTitle}
+      subtitle={`Tổng cộng ${citations.length} ${t.citationsModalSubtitle}`}
       maxWidth="4xl"
     >
       <div className="space-y-3">
         {citations.length === 0 ? (
           <p className="text-xs text-gray-500 py-6 text-center">
-            Chưa có trích dẫn nào được khởi tạo cho báo cáo này.
+            {t.noCitationsFound}
           </p>
         ) : (
           citations.map((c) => (
@@ -55,7 +50,7 @@ export const CitationListModal: React.FC<CitationListModalProps> = ({
                     {c.citation_key || `[${c.style}]`}
                   </span>
                   <Badge variant={c.is_verified ? 'success' : 'warning'}>
-                    {c.is_verified ? 'Đã xác thực nguồn' : 'Chưa xác thực'}
+                    {c.is_verified ? t.verifiedBadge : t.unverifiedBadge}
                   </Badge>
                 </div>
 
@@ -68,7 +63,7 @@ export const CitationListModal: React.FC<CitationListModalProps> = ({
                   ) : (
                     <Copy className="w-3 h-3" />
                   )}
-                  <span>{copiedId === c.id ? 'Đã chép' : 'Sao chép'}</span>
+                  <span>{copiedId === c.id ? t.copiedBtn : t.copyBtn}</span>
                 </button>
               </div>
 
@@ -80,7 +75,7 @@ export const CitationListModal: React.FC<CitationListModalProps> = ({
               {/* Claim context */}
               {c.claim_text && (
                 <div className="pt-2 border-t border-gray-800/80 text-[11px] text-gray-400">
-                  <span className="text-gray-500 font-semibold">Luận điểm tương ứng:</span>{' '}
+                  <span className="text-gray-500 font-semibold">{t.claimTextLabel}</span>{' '}
                   <span className="italic">"{c.claim_text}"</span>
                 </div>
               )}

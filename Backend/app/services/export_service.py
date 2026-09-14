@@ -7,16 +7,29 @@ import os
 import re
 import logging
 from typing import Optional
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib import colors
 from app.core.config import settings
 
 logger = logging.getLogger("paperflow.export")
+
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    DOCX_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"python-docx is unavailable: {e}")
+    DOCX_AVAILABLE = False
+    Document = None
+
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    REPORTLAB_AVAILABLE = True
+except Exception as e:
+    logger.warning(f"reportlab is unavailable: {e}")
+    REPORTLAB_AVAILABLE = False
 
 class ExportService:
     """
@@ -42,14 +55,14 @@ class ExportService:
 
     def export_docx(self, title: str, content: str, session_id: str) -> str:
         """
-        Chuyển đổi nội dung Markdown sang tài liệu Microsoft Word (.docx):
-        - Tiêu đề chính căn giữa, font chữ lớn.
-        - Xử lý các cấp độ tiêu đề H1, H2, H3 với màu sắc nhận diện.
-        - Dựng bảng biểu Markdown (Table Grid) với hàng header in đậm.
-        - Danh sách có thứ tự và không thứ tự.
+        Chuyển đổi nội dung Markdown sang tài liệu Microsoft Word (.docx).
         """
         filename = f"report_{session_id[:8]}.docx"
         file_path = os.path.join(self.export_dir, filename)
+
+        if not DOCX_AVAILABLE or Document is None:
+            # Fallback sang markdown nếu docx không khả dụng
+            return self.export_markdown(title, content, session_id)
 
         doc = Document()
 

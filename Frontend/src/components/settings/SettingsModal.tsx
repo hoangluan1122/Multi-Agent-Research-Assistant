@@ -1,16 +1,9 @@
-/**
- * Component Modal Cài Đặt Hệ Thống & LLM (Settings Modal - UC013):
- * - Chọn nhà cung cấp mô hình (Gemini / OpenAI).
- * - Nhập mã mô hình LLM, khóa API bí mật (API Key) và Base URL.
- * - Cấu hình tham số vận hành: Số lượng bài báo tối đa khi tìm kiếm, Số lần retry phản biện.
- * - Nút kiểm tra kết nối trực tiếp (Test Connection) với nhà cung cấp LLM.
- */
-
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import type { SystemConfig, SystemConfigUpdate } from '../../types';
-import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,6 +20,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
   onTestLlm,
 }) => {
+  const { language, setLanguage, t } = useI18n();
   const [provider, setProvider] = useState<string>('gemini');
   const [model, setModel] = useState<string>('gemini-2.5-flash');
   const [geminiKey, setGeminiKey] = useState<string>('');
@@ -87,15 +81,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Cài Đặt Hệ Thống & Mô Hình AI"
-      subtitle="Quản lý LLM Provider, API Keys và các tham số điều phối Multi-Agent"
+      title={t.settingsModalTitle}
+      subtitle={t.settingsModalSubtitle}
       maxWidth="2xl"
     >
       <form onSubmit={handleSave} className="space-y-4 text-xs">
+        {/* Language Selection */}
+        <div>
+          <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+            <Languages className="w-3.5 h-3.5 text-indigo-400" /> {t.languageSettingLabel}
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setLanguage('vi')}
+              className={`p-2.5 rounded-xl border font-semibold text-center transition-all flex items-center justify-center gap-2 ${
+                language === 'vi'
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                  : 'bg-gray-800/40 border-gray-700/60 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <span>🇻🇳 Tiếng Việt</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setLanguage('en')}
+              className={`p-2.5 rounded-xl border font-semibold text-center transition-all flex items-center justify-center gap-2 ${
+                language === 'en'
+                  ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                  : 'bg-gray-800/40 border-gray-700/60 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <span>🇬🇧 English</span>
+            </button>
+          </div>
+        </div>
+
         {/* Provider Selection */}
         <div>
           <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> Nhà cung cấp LLM (Provider)
+            <Cpu className="w-3.5 h-3.5 text-indigo-400" /> {t.providerLabel}
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {[
@@ -129,7 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Model Name */}
         <div>
           <label className="block font-semibold text-gray-300 uppercase tracking-wider mb-1.5">
-            Tên Mô Hình Mặc Định
+            {t.defaultModelLabel}
           </label>
           <input
             type="text"
@@ -146,17 +171,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="font-semibold text-gray-300 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-indigo-400" /> Gemini API Key
+                  <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
                 </label>
                 {config?.has_gemini_key && (
-                  <Badge variant="success">Key đã được cấu hình trong .env</Badge>
+                  <Badge variant="success">{t.keyConfiguredEnv}</Badge>
                 )}
               </div>
               <input
                 type="password"
                 value={geminiKey}
                 onChange={(e) => setGeminiKey(e.target.value)}
-                placeholder="Nhập Gemini API Key mới (để trống nếu dùng key hiện tại)..."
+                placeholder={t.geminiKeyPlaceholder}
                 className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
               />
             </div>
@@ -165,17 +190,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="font-semibold text-gray-300 flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5 text-indigo-400" /> API Key ({provider.toUpperCase()})
+                    <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.apiKeyLabel} ({provider.toUpperCase()})
                   </label>
                   {config?.has_openai_key && (
-                    <Badge variant="success">Key đã được cấu hình</Badge>
+                    <Badge variant="success">{t.keyConfigured}</Badge>
                   )}
                 </div>
                 <input
                   type="password"
                   value={openaiKey}
                   onChange={(e) => setOpenaiKey(e.target.value)}
-                  placeholder={`Nhập ${provider.toUpperCase()} API Key...`}
+                  placeholder={t.apiKeyPlaceholder}
                   className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
                 />
               </div>
@@ -183,7 +208,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {(provider === 'groq' || provider === 'openrouter') && (
                 <div>
                   <label className="font-semibold text-gray-400 mb-1 block">
-                    Custom Base URL (Tùy chọn)
+                    {t.customBaseUrl}
                   </label>
                   <input
                     type="text"
@@ -206,10 +231,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Server className="w-4 h-4 text-indigo-400" />
-            <span className="text-gray-300 font-medium">Vector Store (Qdrant)</span>
+            <span className="text-gray-300 font-medium">{t.vectorStoreLabel}</span>
           </div>
           <Badge variant={config?.qdrant_use_memory ? 'info' : 'success'}>
-            {config?.qdrant_use_memory ? 'In-Memory (RAM)' : 'Qdrant Host'}
+            {config?.qdrant_use_memory ? t.inMemoryBadge : t.qdrantHostBadge}
           </Badge>
         </div>
 
@@ -224,12 +249,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {testing ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Đang gửi truy vấn kiểm tra...</span>
+                <span>{t.testingConnectionBtn}</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Kiểm tra kết nối LLM</span>
+                <span>{t.testConnectionBtn}</span>
               </>
             )}
           </button>
@@ -252,7 +277,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
               {testResult.response && (
                 <p className="mt-1 text-[11px] font-mono text-gray-300">
-                  Phản hồi từ AI: "{testResult.response}"
+                  {t.aiResponseLabel} "{testResult.response}"
                 </p>
               )}
             </div>
@@ -266,7 +291,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
           >
-            Đóng
+            {t.closeBtn}
           </button>
           <button
             type="submit"
@@ -276,10 +301,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {saving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang lưu...</span>
+                <span>{t.savingSettingsBtn}</span>
               </>
             ) : (
-              <span>Lưu Cài Đặt</span>
+              <span>{t.saveSettingsBtn}</span>
             )}
           </button>
         </div>

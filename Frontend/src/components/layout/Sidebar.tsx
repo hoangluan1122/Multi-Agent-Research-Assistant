@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import type { Session } from '../../types';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface SidebarProps {
   sessions: Session[];
@@ -39,6 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onDeleteSession,
   onCloseMobile,
 }) => {
+  const { language, t } = useI18n();
   const [filterQuery, setFilterQuery] = useState('');
 
   const filteredSessions = sessions.filter(
@@ -48,23 +50,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
         s.research_question.toLowerCase().includes(filterQuery.toLowerCase()))
   );
 
-  const getStatusBadge = (status: Session['status']) => {
-    switch (status) {
+  const getStatusBadge = (status: string) => {
+    const s = (status || '').toLowerCase();
+    switch (s) {
       case 'completed':
-        return <Badge variant="success">Hoàn thành</Badge>;
+        return <Badge variant="success">{t.statusCompleted}</Badge>;
       case 'failed':
-        return <Badge variant="danger">Lỗi</Badge>;
+        return <Badge variant="danger">{t.statusFailed}</Badge>;
       case 'created':
-        return <Badge variant="neutral">Khởi tạo</Badge>;
+      case 'ready':
+        return <Badge variant="neutral">{t.statusCreated}</Badge>;
       default:
-        return <Badge variant="info">Đang xử lý</Badge>;
+        return <Badge variant="info">{t.statusProcessing}</Badge>;
     }
   };
 
   const formatDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
-      return d.toLocaleDateString('vi-VN', {
+      return d.toLocaleDateString(language === 'vi' ? 'vi-VN' : 'en-US', {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -96,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
               <FolderOpen className="w-4 h-4 text-indigo-400" />
-              <span>Phiên nghiên cứu ({sessions.length})</span>
+              <span>{t.researchSessions} ({sessions.length})</span>
             </div>
             <button
               onClick={onCloseMobile}
@@ -111,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-gray-800 hover:bg-gray-750 text-indigo-300 hover:text-white text-xs font-medium border border-gray-700/60 hover:border-indigo-500/40 transition-all shadow-sm"
           >
             <Plus className="w-4 h-4" />
-            <span>Tạo phiên nghiên cứu mới</span>
+            <span>{t.createSessionBtn}</span>
           </button>
 
           {/* Search bar */}
@@ -121,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               type="text"
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
-              placeholder="Tìm kiếm phiên..."
+              placeholder={t.searchSessionsPlaceholder}
               className="w-full bg-gray-800/60 text-xs text-gray-200 pl-8 pr-3 py-1.5 rounded-lg border border-gray-700/50 focus:border-indigo-500 focus:outline-none placeholder-gray-500 transition-colors"
             />
           </div>
@@ -133,7 +137,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="text-center py-10 px-4">
               <Layers className="w-8 h-8 text-gray-600 mx-auto mb-2" />
               <p className="text-xs text-gray-400">
-                {filterQuery ? 'Không tìm thấy phiên phù hợp' : 'Chưa có phiên nghiên cứu nào'}
+                {filterQuery ? t.noSessionsFound : t.noSessionsYet}
               </p>
             </div>
           ) : (
@@ -163,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button
                       onClick={(e) => onDeleteSession(session.id, e)}
                       className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-rose-400 rounded hover:bg-gray-700/50 transition-all shrink-0"
-                      title="Xóa phiên này"
+                      title={t.deleteSessionTitle}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

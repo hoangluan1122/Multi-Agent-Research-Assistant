@@ -15,18 +15,24 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
+import { useI18n } from '../../i18n/context';
 
 interface ReviewScorecardProps {
   review?: Review;
 }
 
 export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
+  const { t } = useI18n();
   if (!review) return null;
 
+  // Normalized score (0-100)
+  const normalizedScore = review.score <= 10 ? review.score * 10 : review.score;
+  const isPass = ['pass', 'passed'].includes((review.status || '').toLowerCase());
+
   const getScoreVariant = (score: number) => {
-    if (score >= 8.5) return 'success';
-    if (score >= 7.0) return 'info';
-    if (score >= 5.0) return 'warning';
+    if (score >= 85) return 'success';
+    if (score >= 70) return 'info';
+    if (score >= 50) return 'warning';
     return 'danger';
   };
 
@@ -36,15 +42,15 @@ export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
         <div className="flex items-center gap-2">
           <Award className="w-5 h-5 text-indigo-400" />
           <h4 className="text-sm font-bold text-white uppercase tracking-wider">
-            Đánh Giá Chất Lượng (Review Agent)
+            {t.reviewScorecardTitle}
           </h4>
         </div>
 
         {/* Overall Score Badge */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400">Điểm tổng kết:</span>
-          <Badge variant={getScoreVariant(review.score)} size="md">
-            <span className="font-bold text-sm">{review.score.toFixed(1)}</span> / 10
+          <span className="text-xs text-gray-400">{t.overallScore}</span>
+          <Badge variant={getScoreVariant(normalizedScore)} size="md">
+            <span className="font-bold text-sm">{normalizedScore.toFixed(1)}</span> / 100
           </Badge>
         </div>
       </div>
@@ -55,7 +61,7 @@ export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 space-y-1">
           <div className="flex items-center justify-between text-gray-400">
             <span className="flex items-center gap-1.5 font-medium">
-              <BookMarked className="w-3.5 h-3.5 text-indigo-400" /> Độ phủ trích dẫn
+              <BookMarked className="w-3.5 h-3.5 text-indigo-400" /> {t.citationCoverage}
             </span>
             <span className="font-bold text-indigo-300">
               {(review.citation_coverage * 100).toFixed(0)}%
@@ -71,9 +77,9 @@ export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
 
         {/* Status */}
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 flex items-center justify-between">
-          <span className="text-gray-400 font-medium">Trạng thái phản biện:</span>
-          <Badge variant={review.status === 'passed' ? 'success' : 'warning'}>
-            {review.status.toUpperCase()}
+          <span className="text-gray-400 font-medium">{t.reviewStatus}</span>
+          <Badge variant={isPass ? 'success' : 'danger'}>
+            {isPass ? t.statusPass : t.statusFail}
           </Badge>
         </div>
       </div>
@@ -82,7 +88,7 @@ export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
       {review.hallucination_risks && review.hallucination_risks.length > 0 && (
         <div className="p-3.5 rounded-xl bg-rose-950/30 border border-rose-500/30 space-y-2">
           <h5 className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-rose-400" /> Cảnh báo Rủi ro Hallucination ({review.hallucination_risks.length})
+            <ShieldAlert className="w-4 h-4 text-rose-400" /> {t.hallucinationAlertTitle} ({review.hallucination_risks.length})
           </h5>
           <div className="space-y-1.5">
             {review.hallucination_risks.map((risk, idx) => (
@@ -99,7 +105,7 @@ export const ReviewScorecard: React.FC<ReviewScorecardProps> = ({ review }) => {
       {review.feedback && (
         <div className="p-3.5 rounded-xl bg-gray-800/50 border border-gray-700/60 space-y-1.5 text-xs">
           <h5 className="font-semibold text-indigo-300 flex items-center gap-1.5">
-            <MessageSquare className="w-3.5 h-3.5 text-indigo-400" /> Nhận xét chi tiết của phản biện:
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-400" /> {t.feedbackTitle}
           </h5>
           <p className="text-gray-300 leading-relaxed italic">{review.feedback}</p>
         </div>
