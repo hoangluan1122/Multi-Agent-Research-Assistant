@@ -99,6 +99,35 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
 
   const agentRuns = workflowStatus?.agent_runs || [];
 
+  const getGraphStatus = (
+    agentName: string
+  ): 'waiting' | 'running' | 'completed' | 'failed' | undefined => {
+    if (!isRunning) return undefined;
+
+    const currentIndex = AGENTS_METADATA.findIndex(
+      (agent) => agent.name === workflowStatus?.current_agent
+    );
+
+    const agentIndex = AGENTS_METADATA.findIndex(
+      (agent) => agent.name === agentName
+    );
+
+    if (currentIndex < 0) return 'waiting';
+
+    if ((workflowStatus?.status || '').toLowerCase() === 'failed') {
+      return agentIndex === currentIndex
+        ? 'failed'
+        : agentIndex < currentIndex
+          ? 'completed'
+          : 'waiting';
+    }
+
+    if (agentIndex < currentIndex) return 'completed';
+    if (agentIndex === currentIndex) return 'running';
+
+    return 'waiting';
+  };
+
   const getLatestRunForAgent = (agentName: string) => {
     const runs = agentRuns.filter((r) => r.agent_name === agentName);
     if (runs.length === 0) return undefined;
@@ -316,22 +345,20 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
           <div className="flex items-center p-1 rounded-xl bg-gray-900 border border-gray-800 shadow-inner">
             <button
               onClick={() => setViewMode('office')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'office'
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${viewMode === 'office'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
+                : 'text-gray-400 hover:text-gray-200'
+                }`}
             >
               <Building2 className="w-3.5 h-3.5" />
               <span>{t.viewModeOffice}</span>
             </button>
             <button
               onClick={() => setViewMode('graph')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                viewMode === 'graph'
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
-                  : 'text-gray-400 hover:text-gray-200'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${viewMode === 'graph'
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-500/25'
+                : 'text-gray-400 hover:text-gray-200'
+                }`}
             >
               <Layers className="w-3.5 h-3.5" />
               <span>{t.viewModeGraph}</span>
@@ -358,6 +385,8 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
                 description={agent.description}
                 currentActiveAgent={workflowStatus?.current_agent}
                 latestRun={getLatestRunForAgent(agent.name)}
+                displayStatus={getGraphStatus(agent.name)}
+
                 onClick={() => handleAgentClick(agent.name)}
               />
             ))}
