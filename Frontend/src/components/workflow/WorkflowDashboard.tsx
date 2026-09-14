@@ -81,7 +81,12 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
 
   const getLatestRunForAgent = (agentName: string) => {
     const runs = agentRuns.filter((r) => r.agent_name === agentName);
-    return runs.length > 0 ? runs[runs.length - 1] : undefined;
+    if (runs.length === 0) return undefined;
+    // Sort theo started_at giảm dần để lấy run MỚI NHẤT
+    const sorted = [...runs].sort(
+      (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime()
+    );
+    return sorted[0];
   };
 
   const handleAgentClick = (agentName: string) => {
@@ -92,7 +97,8 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
     }
   };
 
-  const progress = workflowStatus?.progress_percentage ?? (session.status === 'completed' ? 100 : 0);
+  // Backend trả status UPPERCASE nên normalize về lowercase trước khi so sánh
+  const progress = workflowStatus?.progress_percentage ?? (session.status?.toLowerCase() === 'completed' ? 100 : 0);
 
   return (
     <div className="space-y-6">
@@ -230,17 +236,17 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
                       {run.step_description || 'Thực thi quy trình'}
                     </td>
                     <td className="py-2.5 px-3">
-                      {run.status === 'completed' && (
+                      {run.status?.toLowerCase() === 'completed' && (
                         <span className="text-emerald-400 font-medium flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Hoàn tất
                         </span>
                       )}
-                      {run.status === 'failed' && (
+                      {run.status?.toLowerCase() === 'failed' && (
                         <span className="text-rose-400 font-medium flex items-center gap-1">
                           <AlertCircle className="w-3.5 h-3.5" /> Thất bại
                         </span>
                       )}
-                      {run.status === 'running' && (
+                      {run.status?.toLowerCase() === 'running' && (
                         <span className="text-indigo-400 font-medium flex items-center gap-1">
                           <Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang chạy
                         </span>

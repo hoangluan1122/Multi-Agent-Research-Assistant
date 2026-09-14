@@ -17,6 +17,8 @@ import {
   Award,
   Loader2,
   Table as TableIcon,
+  Edit3,
+  Send,
 } from 'lucide-react';
 import type { Session, Report, Citation } from '../../types';
 import { ReviewScorecard } from './ReviewScorecard';
@@ -29,6 +31,7 @@ interface ReportViewProps {
   citations: Citation[];
   onExport: (format: 'markdown' | 'docx' | 'pdf') => Promise<void>;
   onTriggerWorkflow: () => void;
+  onRevise?: (feedback: string) => Promise<void>;
 }
 
 export const ReportView: React.FC<ReportViewProps> = ({
@@ -36,10 +39,27 @@ export const ReportView: React.FC<ReportViewProps> = ({
   citations,
   onExport,
   onTriggerWorkflow,
+  onRevise,
 }) => {
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review' | 'revise'>('content');
+  const [feedbackInput, setFeedbackInput] = useState('');
+  const [isRevising, setIsRevising] = useState(false);
+
+  const handleRevise = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackInput.trim() || !onRevise) return;
+    setIsRevising(true);
+    try {
+      await onRevise(feedbackInput.trim());
+      setFeedbackInput('');
+      setActiveTab('content');
+    } finally {
+      setIsRevising(false);
+    }
+  };
+
 
   const handleExport = async (fmt: 'markdown' | 'docx' | 'pdf') => {
     setExportingFormat(fmt);
@@ -164,6 +184,20 @@ export const ReportView: React.FC<ReportViewProps> = ({
             <span>Đánh Giá Phản Biện ({latestReview.score.toFixed(1)}/10)</span>
           </button>
         )}
+
+        {onRevise && (
+          <button
+            onClick={() => setActiveTab('revise')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              activeTab === 'revise'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+            }`}
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>Sửa Theo Góp Ý (Feedback)</span>
+          </button>
+        )}
       </div>
 
       {/* Tab 1: Full Markdown Content */}
@@ -197,6 +231,62 @@ export const ReportView: React.FC<ReportViewProps> = ({
         <ReviewScorecard review={latestReview} />
       )}
 
+      {/* Tab 4: Revise with User Feedback */}
+      {activeTab === 'revise' && onRevise && (
+        <div className="p-6 rounded-2xl bg-gray-900/90 border border-gray-800 shadow-xl space-y-6">
+          <div className="space-y-1">
+            <h4 className="text-base font-bold text-white flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-indigo-400" />
+              Chỉnh Sửa Báo Cáo Dựa Trên Góp Ý (UC011)
+            </h4>
+            <p className="text-xs text-gray-400">
+              Nhập các yêu cầu chỉnh sửa, chỉ đạo học thuật hoặc bổ sung phân tích. WritingAgent sẽ viết lại báo cáo thành phiên bản mới (v{report.version + 1}) và ReviewAgent sẽ thẩm định lại.
+            </p>
+          </div>
+
+          {latestReview?.feedback && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 space-y-1">
+              <span className="font-semibold text-amber-300">Góp ý từ lần phản biện trước:</span>
+              <p className="italic text-gray-300">"{latestReview.feedback}"</p>
+            </div>
+          )}
+
+          <form onSubmit={handleRevise} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                Nội dung góp ý / Yêu cầu chỉnh sửa cụ thể:
+              </label>
+              <textarea
+                rows={5}
+                required
+                value={feedbackInput}
+                onChange={(e) => setFeedbackInput(e.target.value)}
+                placeholder="Ví dụ: Bổ sung so sánh chi tiết thời gian huấn luyện giữa Transformer và CNN, giải thích thêm về hạn chế của tập dữ liệu Imagenet..."
+                className="w-full px-4 py-3 rounded-xl bg-gray-950 border border-gray-800 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isRevising || !feedbackInput.trim()}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/25 transition-all disabled:opacity-50"
+            >
+              {isRevising ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>WritingAgent đang chỉnh sửa & ReviewAgent đang thẩm định...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span>Gửi góp ý & Tạo bản báo cáo mới (v{report.version + 1})</span>
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* Citation Modal */}
       <CitationListModal
         citations={citations}
@@ -206,3 +296,4 @@ export const ReportView: React.FC<ReportViewProps> = ({
     </div>
   );
 };
+

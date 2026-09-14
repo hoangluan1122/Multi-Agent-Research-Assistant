@@ -62,3 +62,8 @@ class ExportRequest(BaseModel):
     include_citations: bool = Field(True, description="Đính kèm danh mục tài liệu tham khảo")
     include_comparison_table: bool = Field(True, description="Đính kèm bảng so sánh tổng hợp")
 
+class ReportReviseRequest(BaseModel):
+    """Schema yêu cầu chỉnh sửa báo cáo dựa trên góp ý / feedback của người dùng (UC011)."""
+    feedback: str = Field(..., min_length=3, description="Nội dung góp ý hoặc chỉ đạo chỉnh sửa chi tiết của người dùng")
+
+
