@@ -123,7 +123,8 @@ export const translations = {
     viewAnalysisBtn: 'Xem phân tích',
     analyzeNowBtn: 'Bắt đầu phân tích',
     analyzingBtn: 'Đang phân tích...',
-    openOriginalLink: 'Mở bài báo gốc',
+    openOriginalLink: 'Mở bài báo',
+    readDirectPdf: 'Đọc toàn văn PDF',
     uploadedPdfBadge: 'File PDF Tải Lên',
 
     analysisModalTitle: 'Phân Tích Chi Tiết Bài Báo (Reading Agent)',
@@ -342,7 +343,8 @@ export const translations = {
     viewAnalysisBtn: 'View Analysis',
     analyzeNowBtn: 'Analyze Now',
     analyzingBtn: 'Analyzing...',
-    openOriginalLink: 'Open Original Paper',
+    openOriginalLink: 'Open Article',
+    readDirectPdf: 'Read Full-text PDF',
     uploadedPdfBadge: 'Uploaded PDF',
 
     analysisModalTitle: 'Paper Deep Analysis (Reading Agent)',
