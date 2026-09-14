@@ -16,6 +16,7 @@ import {
 import type {
   Session,
   SessionCreate,
+  SessionUpdate,
   Paper,
   WorkflowStatus,
   Report,
@@ -81,7 +82,7 @@ function parseCurrentRoute(): {
 export function App() {
   const { t, language } = useI18n();
   const { user } = useAuth();
-  
+
   // @trace: REQ-010: Khởi tạo state từ URL thực tế
   const initialRoute = parseCurrentRoute();
   const [showWelcome, setShowWelcome] = useState(initialRoute.showWelcome);
@@ -267,6 +268,13 @@ export function App() {
     }
   }, [activeSession, loadSessionDetails]);
 
+
+  useEffect(() => {
+  if (activeSession && activeTab === 'report') {
+    loadSessionDetails(activeSession);
+  }
+}, [activeSession, activeTab, loadSessionDetails]);
+
   // 3. Workflow Real-time Polling
   // NOTE: Backend trả status UPPERCASE (RUNNING, COMPLETED, FAILED),
   // nên phải .toLowerCase() trước khi so sánh
@@ -390,6 +398,21 @@ export function App() {
     }
   };
 
+  // Lưu yêu cầu đã chỉnh sửa ngay tại Dashboard để lần chạy tiếp theo dùng dữ liệu mới.
+  const handleUpdateSession = async (updates: SessionUpdate) => {
+    if (!activeSession) return;
+
+    try {
+      const updatedSession = await sessionService.updateSession(activeSession.id, updates);
+      setActiveSession((current) => current?.id === updatedSession.id ? { ...current, ...updatedSession } : current);
+      setSessions((current) => current.map((item) => item.id === updatedSession.id ? { ...item, ...updatedSession } : item));
+      addToast('success', 'Đã lưu yêu cầu nghiên cứu.');
+    } catch (err: any) {
+      addToast('error', `Không thể lưu yêu cầu nghiên cứu: ${err.message}`);
+      throw err;
+    }
+  };
+
   // Handler: Search Papers
   const handleSearchPapers = async (
     query: string,
@@ -410,10 +433,11 @@ export function App() {
         year_end: yearEnd,
       });
       setPapers((prev) => {
-        const uploadedPapers = prev.filter((p) => p.source === 'upload');
-        return [...results, ...uploadedPapers];
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newOnes = results.filter((p) => !existingIds.has(p.id));
+        return [...newOnes, ...prev];
       });
-      addToast('success', `Tìm thấy ${results.length} bài báo phù hợp.`);
+      addToast('success', `Tìm thấy ${results.length} bài báo mới.`);
     } catch (err: any) {
       addToast('error', `Tìm kiếm bài báo thất bại: ${err.message}`);
     }
@@ -556,141 +580,148 @@ export function App() {
         />
       )}
       {!showWelcome && <>
-      {/* Top Navigation Header */}
-      <Header
-        currentSession={activeSession}
-        config={config}
-        backendHealthy={backendHealthy}
-        onOpenCreateSession={() => setIsCreateModalOpen(true)}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-      />
-
-      {/* Main Workspace Layout */}
-      <div className="pf-workspace flex-1 flex w-full mx-auto">
-        {/* Sidebar */}
-        <Sidebar
-          sessions={sessions}
-          activeSessionId={activeSession?.id || null}
-          isOpen={isSidebarOpen}
-          onSelectSession={(s) => selectSession(s)}
-          onCreateSession={() => setIsCreateModalOpen(true)}
-          onDeleteSession={handleDeleteSession}
-          onCloseMobile={() => setIsSidebarOpen(false)}
+        {/* Top Navigation Header */}
+        <Header
+          currentSession={activeSession}
+          config={config}
+          backendHealthy={backendHealthy}
+          onOpenCreateSession={() => setIsCreateModalOpen(true)}
+          onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenAuth={() => setIsAuthOpen(true)}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         />
 
-        {/* Content Area */}
-        <main className="pf-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <button className="pf-workspace-home" onClick={goToWelcome}>
-            ← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}
-          </button>
-          {activeSession ? (
-            <div className="space-y-6 max-w-5xl mx-auto">
-              {/* Tab Navigation */}
-              <div className="pf-tabs flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
-                <button
-                  onClick={() => switchTab('workflow')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === 'workflow'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{t.tabWorkflow}</span>
-                </button>
+        {/* Main Workspace Layout */}
+        <div className="pf-workspace flex-1 flex w-full mx-auto">
+          {/* Sidebar */}
+          <Sidebar
+            sessions={sessions}
+            activeSessionId={activeSession?.id || null}
+            isOpen={isSidebarOpen}
+            onSelectSession={(s) => selectSession(s)}
+            onCreateSession={() => setIsCreateModalOpen(true)}
+            onDeleteSession={handleDeleteSession}
+            onCloseMobile={() => setIsSidebarOpen(false)}
+          />
 
-                <button
-                  onClick={() => switchTab('papers')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === 'papers'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  <span>{t.tabPapers} ({papers.length})</span>
-                </button>
+          {/* Content Area */}
+          <main className="pf-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+            <button className="pf-workspace-home" onClick={goToWelcome}>
+              ← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}
+            </button>
+            {activeSession ? (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                {/* Tab Navigation */}
+                <div className="pf-tabs flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
+                  <button
+                    onClick={() => switchTab('workflow')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeTab === 'workflow'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{t.tabWorkflow}</span>
+                  </button>
 
+                  <button
+                    onClick={() => switchTab('papers')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeTab === 'papers'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>{t.tabPapers} ({papers.length})</span>
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('report')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${activeTab === 'report'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+                        : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{t.tabReport}</span>
+                  </button>
+                </div>
+
+                {/* Tab 1: Workflow */}
+                {activeTab === 'workflow' && (
+                  <WorkflowDashboard
+                    session={activeSession}
+                    workflowStatus={workflowStatus}
+                    isRunning={isWorkflowRunning}
+                    onStartWorkflow={handleStartWorkflow}
+                    onUpdateSession={handleUpdateSession}
+                    onRefreshStatus={() => {
+                      if (activeSession) loadSessionDetails(activeSession);
+                    }}
+                  />
+                )}
+
+                {/* Tab 2: Papers */}
+                {activeTab === 'papers' && (
+                  <PaperDiscovery
+                    session={activeSession}
+                    papers={papers}
+                    isLoading={isLoading}
+                    onSearchPapers={handleSearchPapers}
+                    onUploadPaper={handleUploadPaper}
+                    onToggleSelectPaper={handleToggleSelectPaper}
+                    onBatchSelectPapers={handleBatchSelectPapers}
+                    onAnalyzePaper={handleAnalyzePaper}
+                    onTranslatePaper={handleTranslatePaper}
+                    onTranslateAllPapers={handleTranslateAllPapers}
+                  />
+                )}
+
+                {/* Tab 3: Report */}
+                {activeTab === 'report' && (
+                  <ReportView
+                    session={activeSession}
+                    report={report}
+                    citations={citations}
+                    onExport={handleExportReport}
+                    onTriggerWorkflow={async () => {
+                      if (!activeSession) return;
+
+                      setActiveTab('workflow');
+
+                      // Dùng lại papers đã tìm, không tìm lại từ đầu.
+                      const maxPapers = Number(activeSession.parameters?.max_papers) || 5;
+
+                      await handleStartWorkflow(false, maxPapers);
+                    }}
+                    onRevise={handleReviseReport}
+                  />
+
+                )}
+              </div>
+            ) : (
+              /* Empty State: No Session */
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4">
+                <div className="w-16 h-16 rounded-3xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shadow-xl shadow-indigo-500/10">
+                  <FolderPlus className="w-8 h-8" />
+                </div>
+                <div className="space-y-1 max-w-md">
+                  <h3 className="text-xl font-bold text-white">{t.emptyTitle}</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    {t.emptyDesc}
+                  </p>
+                </div>
                 <button
-                  onClick={() => switchTab('report')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
-                    activeTab === 'report'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-bold shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
                 >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>{t.tabReport}</span>
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t.emptyBtn}</span>
                 </button>
               </div>
-
-              {/* Tab 1: Workflow */}
-              {activeTab === 'workflow' && (
-                <WorkflowDashboard
-                  session={activeSession}
-                  workflowStatus={workflowStatus}
-                  isRunning={isWorkflowRunning}
-                  onStartWorkflow={handleStartWorkflow}
-                  onRefreshStatus={() => {
-                    if (activeSession) loadSessionDetails(activeSession);
-                  }}
-                />
-              )}
-
-              {/* Tab 2: Papers */}
-              {activeTab === 'papers' && (
-                <PaperDiscovery
-                  session={activeSession}
-                  papers={papers}
-                  isLoading={isLoading}
-                  onSearchPapers={handleSearchPapers}
-                  onUploadPaper={handleUploadPaper}
-                  onToggleSelectPaper={handleToggleSelectPaper}
-                  onBatchSelectPapers={handleBatchSelectPapers}
-                  onAnalyzePaper={handleAnalyzePaper}
-                  onTranslatePaper={handleTranslatePaper}
-                  onTranslateAllPapers={handleTranslateAllPapers}
-                />
-              )}
-
-              {/* Tab 3: Report */}
-              {activeTab === 'report' && (
-                <ReportView
-                  session={activeSession}
-                  report={report}
-                  citations={citations}
-                  onExport={handleExportReport}
-                  onTriggerWorkflow={() => setActiveTab('workflow')}
-                  onRevise={handleReviseReport}
-                />
-
-              )}
-            </div>
-          ) : (
-            /* Empty State: No Session */
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 space-y-4">
-              <div className="w-16 h-16 rounded-3xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center shadow-xl shadow-indigo-500/10">
-                <FolderPlus className="w-8 h-8" />
-              </div>
-              <div className="space-y-1 max-w-md">
-                <h3 className="text-xl font-bold text-white">{t.emptyTitle}</h3>
-                <p className="text-xs text-gray-400 leading-relaxed">
-                  {t.emptyDesc}
-                </p>
-              </div>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-bold shadow-xl shadow-indigo-600/30 transition-all hover:scale-105 active:scale-95"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>{t.emptyBtn}</span>
-              </button>
-            </div>
-          )}
-        </main>
-      </div>
+            )}
+          </main>
+        </div>
       </>}
 
       {/* Global Modals */}

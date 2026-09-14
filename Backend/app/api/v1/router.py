@@ -10,7 +10,7 @@ from app.api.v1.endpoints.papers import router as papers_router
 from app.api.v1.endpoints.workflow import router as workflow_router
 from app.api.v1.endpoints.reports import router as reports_router
 from app.api.v1.endpoints.config import router as config_router
-
+from app.api.v1.endpoints.reports import router as reports_router
 # Router chính của API v1
 api_router = APIRouter()
 
@@ -21,4 +21,4 @@ api_router.include_router(papers_router)
 api_router.include_router(workflow_router)
 api_router.include_router(reports_router)
 api_router.include_router(config_router)
-
+api_router.include_router(reports_router)

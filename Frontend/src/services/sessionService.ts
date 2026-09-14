@@ -7,7 +7,7 @@
  */
 
 import { apiClient } from './api';
-import type { Session, SessionCreate } from '../types';
+import type { Session, SessionCreate, SessionUpdate } from '../types';
 
 export const sessionService = {
   /** Lấy danh sách các phiên nghiên cứu gần nhất */
@@ -25,6 +25,12 @@ export const sessionService = {
   /** Tạo một phiên nghiên cứu mới với chủ đề và câu hỏi */
   async createSession(data: SessionCreate): Promise<Session> {
     const response = await apiClient.post<Session>('/api/v1/sessions', data);
+    return response.data;
+  },
+
+  /** Lưu yêu cầu nghiên cứu đã được người dùng chỉnh sửa. */
+  async updateSession(id: string, data: SessionUpdate): Promise<Session> {
+    const response = await apiClient.patch<Session>(`/api/v1/sessions/${id}`, data);
     return response.data;
   },
 

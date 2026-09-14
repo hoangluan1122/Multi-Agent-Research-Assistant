@@ -45,7 +45,8 @@ export const ReportView: React.FC<ReportViewProps> = ({
   const { t } = useI18n();
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review' | 'revise'>('content');
+  // const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review' | 'revise'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'matrix'>('content');
   const [feedbackInput, setFeedbackInput] = useState('');
   const [isRevising, setIsRevising] = useState(false);
 
@@ -173,7 +174,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
           </button>
         )}
 
-        {latestReview && (
+        {/* {latestReview && (
           <button
             onClick={() => setActiveTab('review')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -191,9 +192,9 @@ export const ReportView: React.FC<ReportViewProps> = ({
               /100)
             </span>
           </button>
-        )}
+        )} */}
 
-        {onRevise && (
+        {/* {onRevise && (
           <button
             onClick={() => setActiveTab('revise')}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
@@ -205,7 +206,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             <Edit3 className="w-4 h-4" />
             <span>Sửa Theo Góp Ý (Feedback)</span>
           </button>
-        )}
+        )} */}
       </div>
 
       {/* Tab 1: Full Markdown Content */}
@@ -220,7 +221,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
       )}
 
       {/* Tab 2: Comparison Matrix Table */}
-      {activeTab === 'matrix' && report.comparison_table && (
+      {/* {activeTab === 'matrix' && report.comparison_table && (
         <div className="p-6 rounded-2xl bg-gray-900/90 border border-gray-800 shadow-xl space-y-4">
           <h4 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2">
             <TableIcon className="w-4 h-4 text-indigo-400" />
@@ -232,15 +233,60 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </ReactMarkdown>
           </div>
         </div>
-      )}
+      )} */}
 
+{activeTab === 'matrix' && report.comparison_table && (
+  <div className="overflow-hidden rounded-2xl border border-indigo-100 bg-white shadow-sm">
+    <div className="flex items-center gap-2 border-b border-indigo-100 bg-indigo-50 px-5 py-4">
+      <TableIcon className="h-4 w-4 text-indigo-600" />
+      <h4 className="text-sm font-bold uppercase tracking-wide text-indigo-700">
+        Bảng đối chiếu ma trận các nghiên cứu
+      </h4>
+    </div>
+
+    <div className="overflow-x-auto">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          table: ({ children }) => (
+            <table className="min-w-[1150px] w-full border-collapse text-left text-xs">
+              {children}
+            </table>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-slate-50 text-slate-700">
+              {children}
+            </thead>
+          ),
+          th: ({ children }) => (
+            <th className="border-b border-slate-200 px-4 py-3 font-bold whitespace-nowrap">
+              {children}
+            </th>
+          ),
+          tr: ({ children }) => (
+            <tr className="border-b border-slate-100 align-top odd:bg-white even:bg-slate-50/60 hover:bg-indigo-50/50">
+              {children}
+            </tr>
+          ),
+          td: ({ children }) => (
+            <td className="max-w-[250px] break-words px-4 py-3 leading-5 text-slate-600">
+              {children}
+            </td>
+          ),
+        }}
+      >
+        {report.comparison_table}
+      </ReactMarkdown>
+    </div>
+  </div>
+)}
       {/* Tab 3: Review Scorecard */}
-      {activeTab === 'review' && (
+      {/* {activeTab === 'review' && (
         <ReviewScorecard review={latestReview} />
-      )}
+      )} */}
 
       {/* Tab 4: Revise with User Feedback */}
-      {activeTab === 'revise' && onRevise && (
+      {/* {activeTab === 'revise' && onRevise && (
         <div className="p-6 rounded-2xl bg-gray-900/90 border border-gray-800 shadow-xl space-y-6">
           <div className="space-y-1">
             <h4 className="text-base font-bold text-white flex items-center gap-2">
@@ -293,7 +339,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </button>
           </form>
         </div>
-      )}
+      )} */}
 
       {/* Citation Modal */}
       <CitationListModal

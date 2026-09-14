@@ -21,6 +21,13 @@ export interface SessionCreate {
   parameters?: Record<string, any>;
 }
 
+/** Những trường có thể thay đổi ngay trong một phiên đã tạo. */
+export interface SessionUpdate {
+  topic?: string;
+  research_question?: string;
+  parameters?: Record<string, any>;
+}
+
 export interface Session {
   id: string;
   topic: string;

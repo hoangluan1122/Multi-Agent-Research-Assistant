@@ -6,7 +6,7 @@
  * - Bảng nhật ký hoạt động thời gian thực (Live Agent Execution History).
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Play,
   Loader2,
@@ -15,8 +15,11 @@ import {
   Layers,
   RefreshCw,
   Building2,
+  Pencil,
+  Save,
+  X,
 } from 'lucide-react';
-import type { Session, WorkflowStatus, AgentRun } from '../../types';
+import type { Session, SessionUpdate, WorkflowStatus, AgentRun } from '../../types';
 import { AgentNode } from './AgentNode';
 import { AgentLogModal } from './AgentLogModal';
 import { VirtualOffice } from './virtual-office/VirtualOffice';
@@ -27,6 +30,7 @@ interface WorkflowDashboardProps {
   workflowStatus: WorkflowStatus | null;
   isRunning: boolean;
   onStartWorkflow: (autoSearch: boolean, maxPapers: number) => Promise<void>;
+  onUpdateSession: (updates: SessionUpdate) => Promise<void>;
   onRefreshStatus: () => void;
 }
 
@@ -35,12 +39,24 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
   workflowStatus,
   isRunning,
   onStartWorkflow,
+  onUpdateSession,
   onRefreshStatus,
 }) => {
   const { language, t } = useI18n();
   const [selectedRun, setSelectedRun] = useState<AgentRun | null>(null);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'office' | 'graph'>('graph');
+  const [isEditingRequest, setIsEditingRequest] = useState(false);
+  const [draftTopic, setDraftTopic] = useState(session.topic);
+  const [draftQuestion, setDraftQuestion] = useState(session.research_question || '');
+  const [isSavingRequest, setIsSavingRequest] = useState(false);
+
+  // Khi người dùng chuyển sang một phiên khác, biểu mẫu phải luôn dùng dữ liệu của phiên đó.
+  useEffect(() => {
+    setDraftTopic(session.topic);
+    setDraftQuestion(session.research_question || '');
+    setIsEditingRequest(false);
+  }, [session.id, session.topic, session.research_question]);
 
   const AGENTS_METADATA = [
     {
@@ -101,6 +117,29 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
     }
   };
 
+  const saveResearchRequest = async (runAfterSaving: boolean) => {
+    const topic = draftTopic.trim();
+    if (!topic || isSavingRequest || isRunning) return;
+
+    setIsSavingRequest(true);
+    try {
+      await onUpdateSession({
+        topic,
+        // Gửi chuỗi rỗng khi người dùng xóa câu hỏi để backend không giữ lại giá trị cũ.
+        research_question: draftQuestion.trim(),
+      });
+      setIsEditingRequest(false);
+
+      // Luôn tìm lại tài liệu để các agent nhận đúng yêu cầu nghiên cứu mới.
+      if (runAfterSaving) {
+        const configuredMax = Number(session.parameters?.max_papers);
+        await onStartWorkflow(true, Number.isFinite(configuredMax) && configuredMax > 0 ? configuredMax : 5);
+      }
+    } finally {
+      setIsSavingRequest(false);
+    }
+  };
+
   // Backend trả status UPPERCASE nên normalize về lowercase trước khi so sánh
   const progress = workflowStatus?.progress_percentage ?? (session.status?.toLowerCase() === 'completed' ? 100 : 0);
 
@@ -116,39 +155,120 @@ export const WorkflowDashboard: React.FC<WorkflowDashboardProps> = ({
             <span className="text-xs text-gray-500">•</span>
             <span className="text-xs text-gray-400">ID: {session.id.substring(0, 8)}...</span>
           </div>
-          <h2 className="text-xl font-bold text-white tracking-tight">{session.topic}</h2>
-          {session.research_question && (
-            <p className="text-xs text-gray-400 max-w-2xl">{session.research_question}</p>
+          {isEditingRequest ? (
+            <div className="space-y-2 max-w-2xl">
+              <input
+                aria-label="Chủ đề nghiên cứu"
+                autoFocus
+                value={draftTopic}
+                onChange={(event) => setDraftTopic(event.target.value)}
+                maxLength={500}
+                disabled={isSavingRequest}
+                className="w-full rounded-lg border border-indigo-400/60 bg-gray-950/70 px-3 py-2 text-xl font-bold tracking-tight text-white outline-none focus:border-indigo-300 disabled:opacity-60"
+              />
+              <textarea
+                aria-label="Câu hỏi nghiên cứu"
+                rows={2}
+                value={draftQuestion}
+                onChange={(event) => setDraftQuestion(event.target.value)}
+                maxLength={2000}
+                disabled={isSavingRequest}
+                placeholder="Bổ sung câu hỏi hoặc yêu cầu nghiên cứu..."
+                className="w-full resize-y rounded-lg border border-gray-700 bg-gray-950/70 px-3 py-2 text-xs text-gray-200 outline-none placeholder:text-gray-500 focus:border-indigo-400 disabled:opacity-60"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-white tracking-tight">{session.topic}</h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingRequest(true)}
+                  disabled={isRunning}
+                  title={isRunning ? 'Có thể chỉnh sửa khi workflow hoàn tất' : 'Chỉnh sửa chủ đề và yêu cầu'}
+                  className="rounded-lg p-1.5 text-indigo-300 hover:bg-indigo-500/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
+              {session.research_question ? (
+                <p className="text-xs text-gray-400 max-w-2xl">{session.research_question}</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingRequest(true)}
+                  disabled={isRunning}
+                  className="text-left text-xs text-indigo-300 hover:text-indigo-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  + Thêm câu hỏi nghiên cứu
+                </button>
+              )}
+            </>
           )}
         </div>
 
         {/* Workflow Runner Controls */}
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={onRefreshStatus}
-            className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 transition-colors"
-            title={t.refreshTooltip}
-          >
-            <RefreshCw className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />
-          </button>
+          {isEditingRequest ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftTopic(session.topic);
+                  setDraftQuestion(session.research_question || '');
+                  setIsEditingRequest(false);
+                }}
+                disabled={isSavingRequest}
+                className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-xs font-semibold text-gray-300 hover:bg-gray-800 disabled:opacity-50"
+              >
+                <X className="h-4 w-4" /> Hủy
+              </button>
+              <button
+                type="button"
+                onClick={() => saveResearchRequest(false)}
+                disabled={!draftTopic.trim() || isSavingRequest}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-700 px-4 py-2.5 text-xs font-semibold text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" /> {isSavingRequest ? 'Đang lưu...' : 'Lưu'}
+              </button>
+              <button
+                type="button"
+                onClick={() => saveResearchRequest(true)}
+                disabled={!draftTopic.trim() || isSavingRequest}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/25 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4 fill-white" /> Lưu & chạy lại AI
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onRefreshStatus}
+                className="p-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white border border-gray-700 transition-colors"
+                title={t.refreshTooltip}
+              >
+                <RefreshCw className={`w-4 h-4 ${isRunning ? 'animate-spin' : ''}`} />
+              </button>
 
-          <button
-            onClick={() => onStartWorkflow(true, 5)}
-            disabled={isRunning}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{t.workflowRunning}</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-4 h-4 fill-white" />
-                <span>{t.runWorkflowBtn}</span>
-              </>
-            )}
-          </button>
+              <button
+                onClick={() => onStartWorkflow(true, 5)}
+                disabled={isRunning}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRunning ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{t.workflowRunning}</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>{t.runWorkflowBtn}</span>
+                  </>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
