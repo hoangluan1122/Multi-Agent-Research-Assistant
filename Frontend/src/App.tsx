@@ -43,10 +43,48 @@ import { useI18n } from './i18n/context';
 import { useAuth } from './context/AuthContext';
 import { Welcome } from './components/Welcome';
 
+// @trace: REQ-010: Phân tích URL hiện tại để khôi phục trạng thái trang và phiên nghiên cứu
+function parseCurrentRoute(): {
+  showWelcome: boolean;
+  targetSessionId: string | null;
+  tab: 'workflow' | 'papers' | 'report';
+} {
+  if (typeof window === 'undefined') {
+    return { showWelcome: true, targetSessionId: null, tab: 'workflow' };
+  }
+  const pathname = window.location.pathname;
+  const searchParams = new URLSearchParams(window.location.search);
+  const rawTab = searchParams.get('tab');
+  const validTabs: ('workflow' | 'papers' | 'report')[] = ['workflow', 'papers', 'report'];
+  const tab = validTabs.includes(rawTab as any) ? (rawTab as 'workflow' | 'papers' | 'report') : 'workflow';
+
+  // 1. /sessions/:sessionId
+  const sessionMatch = pathname.match(/^\/sessions\/([a-zA-Z0-9_-]+)/);
+  if (sessionMatch) {
+    return { showWelcome: false, targetSessionId: sessionMatch[1], tab };
+  }
+
+  // 2. /workspace/:sessionId or /workspace
+  if (pathname.startsWith('/workspace')) {
+    const wsMatch = pathname.match(/^\/workspace\/([a-zA-Z0-9_-]+)/);
+    return { showWelcome: false, targetSessionId: wsMatch ? wsMatch[1] : null, tab };
+  }
+
+  // 3. /welcome hoặc / (trang chủ)
+  if (pathname === '/welcome' || pathname === '/' || pathname === '') {
+    return { showWelcome: true, targetSessionId: null, tab: 'workflow' };
+  }
+
+  return { showWelcome: false, targetSessionId: null, tab };
+}
+
 export function App() {
   const { t, language } = useI18n();
   const { user } = useAuth();
-  const [showWelcome, setShowWelcome] = useState(true);
+  
+  // @trace: REQ-010: Khởi tạo state từ URL thực tế
+  const initialRoute = parseCurrentRoute();
+  const [showWelcome, setShowWelcome] = useState(initialRoute.showWelcome);
 
   // State quản lý dữ liệu toàn cục
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -58,7 +96,7 @@ export function App() {
   const [config, setConfig] = useState<SystemConfig | null>(null);
 
   // State điều khiển hiển thị giao diện UI
-  const [activeTab, setActiveTab] = useState<'workflow' | 'papers' | 'report'>('workflow');
+  const [activeTab, setActiveTab] = useState<'workflow' | 'papers' | 'report'>(initialRoute.tab);
   const [backendHealthy, setBackendHealthy] = useState<boolean>(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
@@ -79,7 +117,75 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // 1. Initial Load: Sessions & Config
+  // @trace: REQ-010: Đồng bộ state hiện tại lên thanh địa chỉ URL của trình duyệt
+  const syncRouteToUrl = useCallback((
+    isWelcome: boolean,
+    session: Session | null,
+    tab: 'workflow' | 'papers' | 'report',
+    replace: boolean = false
+  ) => {
+    let targetUrl = '/';
+    if (!isWelcome) {
+      if (session) {
+        targetUrl = `/sessions/${session.id}?tab=${tab}`;
+      } else {
+        targetUrl = '/workspace';
+      }
+    }
+
+    const currentUrl = window.location.pathname + window.location.search;
+    if (currentUrl !== targetUrl) {
+      if (replace) {
+        window.history.replaceState({ isWelcome, sessionId: session?.id, tab }, '', targetUrl);
+      } else {
+        window.history.pushState({ isWelcome, sessionId: session?.id, tab }, '', targetUrl);
+      }
+    }
+  }, []);
+
+  // @trace: REQ-010: Điều hướng giữa các trang
+  const goToWelcome = () => {
+    setShowWelcome(true);
+    syncRouteToUrl(true, null, 'workflow');
+  };
+
+  const goToWorkspace = (session?: Session | null) => {
+    setShowWelcome(false);
+    const targetSession = session || activeSession;
+    syncRouteToUrl(false, targetSession, activeTab);
+  };
+
+  const selectSession = (session: Session) => {
+    setActiveSession(session);
+    syncRouteToUrl(false, session, activeTab);
+  };
+
+  const switchTab = (tab: 'workflow' | 'papers' | 'report') => {
+    setActiveTab(tab);
+    syncRouteToUrl(false, activeSession, tab);
+  };
+
+  // @trace: REQ-010: Lắng nghe sự kiện Back / Forward trên trình duyệt (PopState)
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = parseCurrentRoute();
+      setShowWelcome(route.showWelcome);
+      if (!route.showWelcome) {
+        if (route.targetSessionId) {
+          const matched = sessions.find((s) => s.id === route.targetSessionId);
+          if (matched) {
+            setActiveSession(matched);
+          }
+        }
+        setActiveTab(route.tab);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [sessions]);
+
+  // 1. Initial Load: Sessions & Config (Hỗ trợ Deep Link qua URL)
   const loadInitialData = useCallback(async () => {
     try {
       const [sessionList, sysConfig] = await Promise.all([
@@ -91,18 +197,34 @@ export function App() {
       setConfig(sysConfig);
       setBackendHealthy(true);
 
-      if (sessionList.length > 0) {
-        if (!activeSession || !sessionList.some((s) => s.id === activeSession.id)) {
+      const route = parseCurrentRoute();
+      if (!route.showWelcome) {
+        setShowWelcome(false);
+        setActiveTab(route.tab);
+        if (route.targetSessionId) {
+          const target = sessionList.find((s) => s.id === route.targetSessionId);
+          if (target) {
+            setActiveSession(target);
+            syncRouteToUrl(false, target, route.tab, true);
+          } else if (sessionList.length > 0) {
+            setActiveSession(sessionList[0]);
+            syncRouteToUrl(false, sessionList[0], route.tab, true);
+          }
+        } else if (sessionList.length > 0) {
           setActiveSession(sessionList[0]);
+          syncRouteToUrl(false, sessionList[0], route.tab, true);
         }
       } else {
-        setActiveSession(null);
+        setShowWelcome(true);
+        if (sessionList.length > 0 && !activeSession) {
+          setActiveSession(sessionList[0]);
+        }
       }
     } catch (err: any) {
       setBackendHealthy(false);
       addToast('error', 'Không thể kết nối đến Backend server');
     }
-  }, [activeSession]);
+  }, [syncRouteToUrl]);
 
   useEffect(() => {
     loadInitialData();
@@ -190,13 +312,15 @@ export function App() {
     };
   }, [activeSession, isWorkflowRunning, loadSessionDetails]);
 
-  // Handler: Create Session (REQ-008: Guest Quota Enforcement)
+  // Handler: Create Session (REQ-008: Guest Quota Enforcement, REQ-010: URL Sync)
   const handleCreateSession = async (data: SessionCreate) => {
     try {
       const newSession = await sessionService.createSession(data);
       setSessions((prev) => [newSession, ...prev]);
       setActiveSession(newSession);
       setActiveTab('workflow');
+      setShowWelcome(false);
+      syncRouteToUrl(false, newSession, 'workflow');
       addToast('success', `Đã khởi tạo phiên: "${newSession.topic}"`);
     } catch (err: any) {
       const msg = err.message || '';
@@ -220,7 +344,9 @@ export function App() {
       setSessions((prev) => prev.filter((s) => s.id !== id));
       if (activeSession?.id === id) {
         const remaining = sessions.filter((s) => s.id !== id);
-        setActiveSession(remaining.length > 0 ? remaining[0] : null);
+        const nextActive = remaining.length > 0 ? remaining[0] : null;
+        setActiveSession(nextActive);
+        syncRouteToUrl(false, nextActive, activeTab);
       }
       addToast('info', 'Đã xóa phiên nghiên cứu.');
     } catch (err: any) {
@@ -418,7 +544,18 @@ export function App() {
 
   return (
     <div className="pf-app min-h-screen bg-gray-950 text-gray-100 flex flex-col font-sans">
-      {showWelcome && <Welcome signedIn={!!user} onAuth={() => setIsAuthOpen(true)} onSettings={() => setIsSettingsModalOpen(true)} onWorkspace={() => setShowWelcome(false)} onStart={() => { setShowWelcome(false); setIsCreateModalOpen(true); }} />}
+      {showWelcome && (
+        <Welcome
+          signedIn={!!user}
+          onAuth={() => setIsAuthOpen(true)}
+          onSettings={() => setIsSettingsModalOpen(true)}
+          onWorkspace={() => goToWorkspace()}
+          onStart={() => {
+            goToWorkspace();
+            setIsCreateModalOpen(true);
+          }}
+        />
+      )}
       {!showWelcome && <>
       {/* Top Navigation Header */}
       <Header
@@ -438,7 +575,7 @@ export function App() {
           sessions={sessions}
           activeSessionId={activeSession?.id || null}
           isOpen={isSidebarOpen}
-          onSelectSession={(s) => setActiveSession(s)}
+          onSelectSession={(s) => selectSession(s)}
           onCreateSession={() => setIsCreateModalOpen(true)}
           onDeleteSession={handleDeleteSession}
           onCloseMobile={() => setIsSidebarOpen(false)}
@@ -446,13 +583,15 @@ export function App() {
 
         {/* Content Area */}
         <main className="pf-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          <button className="pf-workspace-home" onClick={() => setShowWelcome(true)}>← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}</button>
+          <button className="pf-workspace-home" onClick={goToWelcome}>
+            ← PaperFlow / {language === 'vi' ? 'Trang giới thiệu' : 'Home'}
+          </button>
           {activeSession ? (
             <div className="space-y-6 max-w-5xl mx-auto">
               {/* Tab Navigation */}
               <div className="pf-tabs flex items-center gap-2 p-1 rounded-2xl bg-gray-900/80 border border-gray-800 w-fit">
                 <button
-                  onClick={() => setActiveTab('workflow')}
+                  onClick={() => switchTab('workflow')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     activeTab === 'workflow'
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
@@ -464,7 +603,7 @@ export function App() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('papers')}
+                  onClick={() => switchTab('papers')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     activeTab === 'papers'
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
@@ -476,7 +615,7 @@ export function App() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab('report')}
+                  onClick={() => switchTab('report')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     activeTab === 'report'
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-600/30'
