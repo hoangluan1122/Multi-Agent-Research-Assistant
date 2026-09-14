@@ -15,7 +15,7 @@ class SessionCreate(BaseModel):
     year_start: Optional[int] = Field(None, ge=1990, le=2030, description="Năm bắt đầu lọc paper")
     year_end: Optional[int] = Field(None, ge=1990, le=2030, description="Năm kết thúc lọc paper")
     max_papers: Optional[int] = Field(10, ge=1, le=50, description="Số lượng bài báo tối đa")
-    sources: Optional[List[str]] = Field(default=["arxiv", "semantic_scholar"], description="Nguồn dữ liệu học thuật")
+    sources: Optional[List[str]] = Field(default=["openalex"], description="Nguồn dữ liệu học thuật")
     citation_style: Optional[str] = Field("IEEE", description="Định dạng trích dẫn (IEEE / APA)")
     parameters: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Các tham số bổ sung khác")
 

@@ -23,6 +23,7 @@ from app.agents.search_agent import search_agent
 from app.agents.reading_agent import reading_agent
 from app.models.user import User
 from app.api.deps import get_current_user_optional, verify_session_access
+from app.services.academic_search import AcademicSearchError
 from app.schemas.paper import (
     PaperSearchRequest,
     PaperResponse,
@@ -56,15 +57,18 @@ async def search_academic_papers(
 
     verify_session_access(session, current_user)
 
-    search_result = await search_agent.run(
-        db=db,
-        session_id=payload.session_id,
-        query=payload.query,
-        year_start=payload.year_start,
-        year_end=payload.year_end,
-        max_papers=payload.max_results or 10,
-        sources=payload.sources
-    )
+    try:
+        search_result = await search_agent.run(
+            db=db,
+            session_id=payload.session_id,
+            query=payload.query,
+            year_start=payload.year_start,
+            year_end=payload.year_end,
+            max_papers=payload.max_results or 10,
+            sources=payload.sources
+        )
+    except AcademicSearchError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
     paper_ids = [item["id"] for item in search_result.get("papers", []) if item.get("id")]
     if not paper_ids:

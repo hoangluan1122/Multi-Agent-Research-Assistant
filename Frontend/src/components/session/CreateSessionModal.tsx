@@ -32,7 +32,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
   const [yearStart, setYearStart] = useState<number>(2020);
   const [yearEnd, setYearEnd] = useState<number>(new Date().getFullYear());
   const [maxPapers, setMaxPapers] = useState<number>(5);
-  const [sources, setSources] = useState<string[]>(['arxiv', 'semantic_scholar']);
+  const [sources, setSources] = useState<string[]>(['openalex']);
   const [citationStyle, setCitationStyle] = useState<string>('IEEE');
   const [loading, setLoading] = useState(false);
 
@@ -185,6 +185,7 @@ export const CreateSessionModal: React.FC<CreateSessionModalProps> = ({
             </label>
             <div className="flex flex-col gap-2">
               {[
+                { id: 'openalex', label: 'OpenAlex API (Broad scholarly metadata)' },
                 { id: 'arxiv', label: 'arXiv API (Computer Science / AI / Physics)' },
                 { id: 'semantic_scholar', label: 'Semantic Scholar API (All Domains)' },
               ].map((src) => {

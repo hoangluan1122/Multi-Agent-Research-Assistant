@@ -413,7 +413,11 @@ export function App() {
         const uploadedPapers = prev.filter((p) => p.source === 'upload');
         return [...results, ...uploadedPapers];
       });
-      addToast('success', `Tìm thấy ${results.length} bài báo phù hợp.`);
+      if (results.length > 0) {
+        addToast('success', `Tìm thấy ${results.length} bài báo phù hợp.`);
+      } else {
+        addToast('info', 'Không tìm thấy bài báo phù hợp từ các nguồn đã chọn. Hãy thử từ khóa tiếng Anh ngắn hơn hoặc bật OpenAlex/Semantic Scholar.');
+      }
     } catch (err: any) {
       addToast('error', `Tìm kiếm bài báo thất bại: ${err.message}`);
     }

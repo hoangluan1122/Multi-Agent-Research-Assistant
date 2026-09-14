@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
+from app.services.query_normalizer import fallback_academic_keywords
 
 logger = logging.getLogger("paperflow.llm")
 
@@ -155,7 +156,9 @@ class LLMService:
         để trả về kết quả chuẩn mẫu ngay cả khi không có kết nối Internet / API Key.
         """
         prompt_lower = prompt.lower()
-        if "analyze" in prompt_lower or "method" in prompt_lower:
+        if self._is_keyword_prompt(prompt_lower):
+            return self._mock_keyword_extraction(prompt)
+        elif "analyze" in prompt_lower or "method" in prompt_lower:
             return json.dumps({
                 "method": "Deep Learning Multi-Head Self-Attention Transformer Architecture with Hybrid Feature Fusion.",
                 "dataset": "Standard Benchmark Academic Datasets (e.g., ImageNet, MIMIC-III, PubMed-200k).",
@@ -176,31 +179,12 @@ class LLMService:
                 "citation_coverage": 0.95
             })
         elif "translate" in prompt_lower or "dịch" in prompt_lower or "title_vi" in prompt_lower:
-            # Smart mock translation extractor
-            title_text = "Nghiên Cứu Tiến Bộ Mới Trong Mô Hình Học Sâu Transformer Cho Phân Đoạn Ảnh Y Tế"
-            abstract_text = (
-                "Nghiên cứu này trình bày tổng quan hệ thống về các mô hình kiến trúc Transformer tiên tiến "
-                "được áp dụng trong phân đoạn hình ảnh y tế. Chúng tôi phân tích so sánh các kiến trúc thuật toán, "
-                "tập dữ liệu benchmark và các đóng góp thực nghiệm then chốt, đồng thời chỉ ra các hạn chế về chi phí tính toán."
-            )
-            if "multi-agent" in prompt_lower:
-                title_text = "Khung Phối Hợp Đa Tác Tử (Multi-Agent) Cho Mô Hình Transformer Trong Xử Lý Y Tế"
-                abstract_text = (
-                    "Chúng tôi đề xuất cơ chế phối hợp đa tác tử mới giúp phân rã các tác vụ phức tạp trong phân đoạn "
-                    "hình ảnh y tế thành các tác tử chuyên biệt, nâng cao độ chính xác và khả năng tổng quát hóa."
-                )
-            elif "empirical" in prompt_lower or "limitation" in prompt_lower:
-                title_text = "Đánh Giá Thực Nghiệm và Những Giới Hạn Của Các Phương Pháp Transformer Hiện Đại"
-                abstract_text = (
-                    "Thông qua các thử nghiệm định lượng nghiêm ngặt trên các bộ dữ liệu công chuẩn, nghiên cứu này "
-                    "đánh giá độ bền vững, độ trễ và khả năng mở rộng của các phương pháp phân đoạn hiện nay."
-                )
+            title_text = self._extract_prompt_field(prompt, ["Title", "Paper Title (EN)"])
+            abstract_text = self._extract_prompt_field(prompt, ["Abstract", "Abstract (EN)"])
             return json.dumps({
-                "title_vi": title_text,
-                "abstract_vi": abstract_text
+                "title_vi": title_text or "Untitled",
+                "abstract_vi": abstract_text or ""
             })
-        elif "keywords" in prompt_lower or "extract" in prompt_lower:
-            return self._mock_keyword_extraction(prompt)
         elif "summary" in prompt_lower or "synthesize" in prompt_lower or "so sánh" in prompt_lower:
             return (
                 "Tổng quan các công trình nghiên cứu nổi bật cho thấy xu hướng tích hợp cơ chế Attention "
@@ -227,17 +211,40 @@ class LLMService:
                 "## 6. Danh mục Tài liệu Tham khảo\n"
             )
 
+    def _is_keyword_prompt(self, prompt_lower: str) -> bool:
+        has_keyword_intent = (
+            "keyword" in prompt_lower
+            or "search terms" in prompt_lower
+            or "search query" in prompt_lower
+        )
+        has_search_context = (
+            "topic or question" in prompt_lower
+            or "searching academic papers" in prompt_lower
+            or "academic search" in prompt_lower
+        )
+        return has_keyword_intent and has_search_context
+
     def _mock_keyword_extraction(self, prompt: str) -> str:
         """Derive query-specific fallback keywords instead of returning a fixed topic."""
         match = re.search(r"topic or question:\s*'([^']+)'", prompt, flags=re.IGNORECASE)
         topic = match.group(1) if match else prompt
-        tokens = re.findall(r"[\w-]+", topic.lower(), flags=re.UNICODE)
-        stopwords = {
-            "a", "an", "and", "are", "as", "for", "from", "given", "in", "of", "or",
-            "question", "research", "terms", "the", "this", "topic", "what", "with",
-        }
-        keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
-        return " ".join(keywords[:5]) or topic.strip()
+        return fallback_academic_keywords(topic, max_terms=10)
+
+    def _extract_prompt_field(self, prompt: str, labels: List[str]) -> str:
+        """Extract a labeled field from a prompt for deterministic non-fabricating fallbacks."""
+        label_pattern = "|".join(re.escape(label) for label in labels)
+        stop_pattern = (
+            r"Title|Paper Title \(EN\)|Abstract|Abstract \(EN\)|Respond|"
+            r"Respond strictly|\{|\}"
+        )
+        match = re.search(
+            rf"(?:^|\n)\s*(?:{label_pattern})\s*:\s*(.*?)(?=\n\s*(?:{stop_pattern})\s*:|\n\s*Respond|\Z)",
+            prompt,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            return ""
+        return re.sub(r"\s+", " ", match.group(1)).strip()
 
 # Khởi tạo singleton instance cho LLMService
 llm_service = LLMService()
