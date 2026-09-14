@@ -34,6 +34,8 @@ async def get_system_config():
         default_model=settings.DEFAULT_LLM_MODEL,
         has_gemini_key=bool(settings.GEMINI_API_KEY),
         has_openai_key=bool(settings.OPENAI_API_KEY),
+        has_semantic_scholar_key=bool(settings.SEMANTIC_SCHOLAR_API_KEY),
+        has_openalex_key=bool(settings.OPENALEX_API_KEY),
         qdrant_host=settings.QDRANT_HOST,
         qdrant_use_memory=settings.QDRANT_USE_MEMORY,
         max_search_papers=settings.MAX_SEARCH_PAPERS,
@@ -82,6 +84,10 @@ async def update_system_config(payload: SystemConfigUpdate):
         if payload.openai_base_url is not None:
             settings.OPENAI_BASE_URL = payload.openai_base_url
 
+    if payload.semantic_scholar_api_key is not None:
+        settings.SEMANTIC_SCHOLAR_API_KEY = payload.semantic_scholar_api_key
+    if payload.openalex_api_key is not None:
+        settings.OPENALEX_API_KEY = payload.openalex_api_key
     if payload.max_search_papers is not None:
         settings.MAX_SEARCH_PAPERS = payload.max_search_papers
     if payload.max_review_retries is not None:
@@ -100,6 +106,8 @@ async def update_system_config(payload: SystemConfigUpdate):
         default_model=settings.DEFAULT_LLM_MODEL,
         has_gemini_key=bool(settings.GEMINI_API_KEY),
         has_openai_key=bool(settings.OPENAI_API_KEY),
+        has_semantic_scholar_key=bool(settings.SEMANTIC_SCHOLAR_API_KEY),
+        has_openalex_key=bool(settings.OPENALEX_API_KEY),
         qdrant_host=settings.QDRANT_HOST,
         qdrant_use_memory=settings.QDRANT_USE_MEMORY,
         max_search_papers=settings.MAX_SEARCH_PAPERS,

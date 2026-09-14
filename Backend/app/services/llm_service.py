@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
+from app.services.query_normalizer import fallback_academic_keywords
 
 logger = logging.getLogger("paperflow.llm")
 
@@ -186,6 +187,9 @@ class LLMService:
         """
         prompt_lower = prompt.lower()
 
+        if self._is_keyword_prompt(prompt_lower):
+            return self._mock_keyword_extraction(prompt)
+
         # 1. SOẠN THẢO BÁO CÁO LITERATURE REVIEW (WritingAgent)
         # BẮT BUỘC ĐẶT LÊN ĐẦU TIÊN để tránh các từ khóa 'method' / 'analyze' cướp luồng trả về JSON
         if (
@@ -277,41 +281,8 @@ class LLMService:
 
         # 4. CHUYỂN NGỮ TIÊU ĐỀ & TÓM TẮT BÀI BÁO (SearchAgent Translation)
         elif "translate" in prompt_lower or "dịch" in prompt_lower or "title_vi" in prompt_lower:
-            t_match = re.search(r"title:\s*([^\n\r]+)", prompt, flags=re.IGNORECASE)
-            raw_t = t_match.group(1).strip() if t_match else "Tài liệu học thuật"
-
-            trans_title = raw_t
-            replacements = [
-                ("Recent Advances in", "Các Tiến Bộ Gần Đây Trong Nghiên Cứu Về"),
-                ("A Comprehensive Survey and Benchmark", "Báo Cáo Tổng Quan và Đánh Giá Chuẩn"),
-                ("Multi-Agent Collaborative Frameworks for", "Khung Phối Hợp Đa Tác Tử Cho"),
-                ("Empirical Evaluation and Limitations of Modern Approaches in", "Đánh Giá Thực Nghiệm và Hạn Chế Của Các Phương Pháp Trong"),
-                ("Empirical Evaluation and Limitations of Modern Methodologies in", "Đánh Giá Thực Nghiệm và Giới Hạn Phương Pháp Trong"),
-                ("Longitudinal Assessment of", "Đánh Giá Theo Thời Gian Dài Về"),
-                ("Clinical and Behavioral Outcomes", "Kết Quả Lâm Sàng và Hành Vi"),
-                ("Systematic Review and Meta-Analysis on the Impacts of", "Tổng Quan Hệ Thống và Phân Tích Tổng Hợp Về Tác Động Của"),
-                ("Modern Analytical Approaches and Policy Interventions in", "Các Phương Pháp Tiếp Cận Phân Tích Hiện Đại và Can Thiệp Chính Sách Trong"),
-                ("Cross-Sectional Investigation of Environmental and Biological Factors in", "Khảo Sát Cắt Ngang Về Các Yếu Tố Môi Trường và Sinh Học Trong"),
-                ("Statistical Modeling and Risk Prediction Frameworks for", "Mô Hình Thống Kê và Khung Dự Đoán Rủi Ro Cho"),
-                ("Technological and Social Perspectives on", "Góc Nhìn Công Nghệ và Xã Hội Về"),
-                ("Future Horizons in", "Triển Vọng Tương Lai Trong"),
-                ("Health Effects of", "Tác Động Sức Khỏe Của"),
-                ("Adverse Effects of", "Tác Hại Tiêu Cực Của"),
-                ("Smartphone", "Điện Thoại Thông Minh"),
-                ("Mobile Phone", "Điện Thoại Di Động"),
-                ("Screen Time", "Thời Gian Sử Dụng Màn Hình"),
-                ("Mental Health", "Sức Khỏe Tâm Thần"),
-                ("Adolescents", "Thanh Thiếu Niên"),
-                ("Tobacco Smoking", "Hút Thuốc Lá"),
-                ("Smoking", "Hút Thuốc Lá"),
-                ("Nicotine", "Nicotin"),
-                ("Human Body", "Cơ Thể Con Người"),
-                ("Cardiovascular Disease", "Bệnh Tim Mạch"),
-            ]
-            for en_term, vi_term in replacements:
-                trans_title = re.sub(re.escape(en_term), vi_term, trans_title, flags=re.IGNORECASE)
-
-            trans_abstract = f"Bài báo này phân tích có hệ thống các khía cạnh liên quan đến {trans_title.lower()}, cung cấp các phân tích thực nghiệm và đánh giá khoa học chuyên sâu."
+            trans_title = self._extract_prompt_field(prompt, ["Title", "Paper Title (EN)"]) or "Untitled"
+            trans_abstract = self._extract_prompt_field(prompt, ["Abstract", "Abstract (EN)"])
             return json.dumps({
                 "title_vi": trans_title,
                 "abstract_vi": trans_abstract
@@ -337,45 +308,40 @@ class LLMService:
                 "làm rõ các phương pháp luận, kết quả phân tích định lượng và định hướng phát triển trong tương lai."
             )
 
-    # @trace: REQ-013
+    def _is_keyword_prompt(self, prompt_lower: str) -> bool:
+        has_keyword_intent = (
+            "keyword" in prompt_lower
+            or "search terms" in prompt_lower
+            or "search query" in prompt_lower
+        )
+        has_search_context = (
+            "topic or question" in prompt_lower
+            or "searching academic papers" in prompt_lower
+            or "academic search" in prompt_lower
+        )
+        return has_keyword_intent and has_search_context
+
     def _mock_keyword_extraction(self, prompt: str) -> str:
         """Trích xuất từ khóa học thuật tiếng Anh phù hợp từ chủ đề người dùng nhập."""
         match = re.search(r"topic or question:\s*'([^']+)'", prompt, flags=re.IGNORECASE)
         topic = match.group(1) if match else prompt
-        
-        # Nhận diện chủ đề tiếng Việt phổ biến để chuyển sang từ khóa tiếng Anh học thuật cho ArXiv / Crossref
-        topic_lower = topic.lower()
-        if "tuyến tiền liệt" in topic_lower or "tiền liệt tuyến" in topic_lower or "prostate" in topic_lower:
-            return "prostate cancer prostate-specific antigen diagnosis therapy"
-        if "tiền" in topic_lower or "tiền tệ" in topic_lower or "tài chính" in topic_lower or "ngân hàng" in topic_lower:
-            return "money currency monetary policy banking finance economics"
-        if "ma tuý" in topic_lower or "ma túy" in topic_lower or "chất gây nghiện" in topic_lower:
-            return "illicit drug abuse addiction narcotics public health"
-        if "bảo hiểm" in topic_lower:
-            return "insurance risk management deposit insurance social security"
-        if "điện thoại" in topic_lower or "smartphone" in topic_lower or "màn hình" in topic_lower:
-            return "smartphone screen time mental health cognitive effects adolescents"
-        if "mạng xã hội" in topic_lower or "social media" in topic_lower:
-            return "social media screen time depression anxiety adolescents"
-        if "thuốc lá" in topic_lower or "smoking" in topic_lower or "tobacco" in topic_lower:
-            return "tobacco smoking nicotine adverse health effects pulmonary cardiovascular"
-        if "ung thư" in topic_lower or "cancer" in topic_lower:
-            return "cancer oncology clinical trials diagnosis therapy"
-        if "tim mạch" in topic_lower or "heart" in topic_lower or "cardio" in topic_lower:
-            return "cardiovascular disease heart pathology clinical biomarkers"
-        if "ô nhiễm" in topic_lower or "không khí" in topic_lower:
-            return "air pollution environmental exposure respiratory health"
-        if "trí tuệ nhân tạo" in topic_lower or "ai" in topic_lower or "học máy" in topic_lower:
-            return "artificial intelligence machine learning deep neural networks"
+        return fallback_academic_keywords(topic, max_terms=10)
 
-        tokens = re.findall(r"[\w-]+", topic_lower, flags=re.UNICODE)
-        stopwords = {
-            "a", "an", "and", "are", "as", "for", "from", "given", "in", "of", "or",
-            "question", "research", "terms", "the", "this", "topic", "what", "with",
-            "của", "và", "các", "những", "cho", "trong", "đến", "về", "là"
-        }
-        keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
-        return " ".join(keywords[:5]) or topic.strip()
+    def _extract_prompt_field(self, prompt: str, labels: List[str]) -> str:
+        """Extract a labeled field from a prompt for deterministic non-fabricating fallbacks."""
+        label_pattern = "|".join(re.escape(label) for label in labels)
+        stop_pattern = (
+            r"Title|Paper Title \(EN\)|Abstract|Abstract \(EN\)|Respond|"
+            r"Respond strictly|\{|\}"
+        )
+        match = re.search(
+            rf"(?:^|\n)\s*(?:{label_pattern})\s*:\s*(.*?)(?=\n\s*(?:{stop_pattern})\s*:|\n\s*Respond|\Z)",
+            prompt,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            return ""
+        return re.sub(r"\s+", " ", match.group(1)).strip()
 
 
 # Khởi tạo singleton instance cho LLMService

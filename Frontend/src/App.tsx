@@ -437,7 +437,11 @@ export function App() {
         const newOnes = results.filter((p) => !existingIds.has(p.id));
         return [...newOnes, ...prev];
       });
-      addToast('success', `Tìm thấy ${results.length} bài báo mới.`);
+      if (results.length > 0) {
+        addToast('success', `Tìm thấy ${results.length} bài báo phù hợp.`);
+      } else {
+        addToast('info', 'Không tìm thấy bài báo phù hợp từ các nguồn đã chọn. Hãy thử từ khóa tiếng Anh ngắn hơn hoặc bật OpenAlex/Semantic Scholar.');
+      }
     } catch (err: any) {
       addToast('error', `Tìm kiếm bài báo thất bại: ${err.message}`);
     }

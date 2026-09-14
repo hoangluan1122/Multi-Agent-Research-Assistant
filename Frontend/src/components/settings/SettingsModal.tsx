@@ -30,6 +30,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [geminiKey, setGeminiKey] = useState<string>('');
   const [openaiKey, setOpenaiKey] = useState<string>('');
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>('');
+  const [semanticScholarKey, setSemanticScholarKey] = useState<string>('');
+  const [openAlexKey, setOpenAlexKey] = useState<string>('');
   const [maxSearch, setMaxSearch] = useState<number>(10);
   const [maxRetries, setMaxRetries] = useState<number>(2);
 
@@ -81,6 +83,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           use_system_default: true,
           llm_provider: provider,
           default_model: model,
+          semantic_scholar_api_key: semanticScholarKey.trim() || undefined,
+          openalex_api_key: openAlexKey.trim() || undefined,
           max_search_papers: Number(maxSearch),
           max_review_retries: Number(maxRetries),
         });
@@ -94,6 +98,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           gemini_api_key: provider === 'gemini' ? (geminiKey.trim() || undefined) : undefined,
           openai_api_key: provider !== 'gemini' ? (openaiKey.trim() || undefined) : undefined,
           openai_base_url: (provider === 'groq' || provider === 'openrouter') ? (openaiBaseUrl.trim() || undefined) : undefined,
+          semantic_scholar_api_key: semanticScholarKey.trim() || undefined,
+          openalex_api_key: openAlexKey.trim() || undefined,
           max_search_papers: Number(maxSearch),
           max_review_retries: Number(maxRetries),
         });
@@ -363,6 +369,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
         )}
+
+        <div className="space-y-2 p-3.5 rounded-xl bg-gray-900/60 border border-gray-700/60">
+          <div className="flex items-center justify-between gap-2">
+            <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-indigo-400" /> Semantic Scholar API Key
+            </label>
+            {config?.has_semantic_scholar_key && (
+              <Badge variant="success">{t.keyConfigured}</Badge>
+            )}
+          </div>
+          <input
+            type="password"
+            value={semanticScholarKey}
+            onChange={(e) => setSemanticScholarKey(e.target.value)}
+            placeholder="Optional, helps avoid Semantic Scholar 429 rate limits"
+            className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+          />
+        </div>
+
+        <div className="space-y-2 p-3.5 rounded-xl bg-gray-900/60 border border-gray-700/60">
+          <div className="flex items-center justify-between gap-2">
+            <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-indigo-400" /> OpenAlex API Key
+            </label>
+            {config?.has_openalex_key && (
+              <Badge variant="success">{t.keyConfigured}</Badge>
+            )}
+          </div>
+          <input
+            type="password"
+            value={openAlexKey}
+            onChange={(e) => setOpenAlexKey(e.target.value)}
+            placeholder="Optional OpenAlex API key"
+            className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+          />
+        </div>
 
         {/* Vector DB Status */}
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 flex items-center justify-between">

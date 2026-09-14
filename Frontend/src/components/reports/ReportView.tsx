@@ -14,14 +14,10 @@ import {
   FileText,
   Quote,
   Sparkles,
-  Award,
   Loader2,
   Table as TableIcon,
-  Edit3,
-  Send,
 } from 'lucide-react';
 import type { Session, Report, Citation } from '../../types';
-import { ReviewScorecard } from './ReviewScorecard';
 import { CitationListModal } from './CitationListModal';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
@@ -40,29 +36,12 @@ export const ReportView: React.FC<ReportViewProps> = ({
   citations,
   onExport,
   onTriggerWorkflow,
-  onRevise,
 }) => {
   const { t } = useI18n();
   const [exportingFormat, setExportingFormat] = useState<string | null>(null);
   const [isCitationModalOpen, setIsCitationModalOpen] = useState(false);
   // const [activeTab, setActiveTab] = useState<'content' | 'matrix' | 'review' | 'revise'>('content');
   const [activeTab, setActiveTab] = useState<'content' | 'matrix'>('content');
-  const [feedbackInput, setFeedbackInput] = useState('');
-  const [isRevising, setIsRevising] = useState(false);
-
-  const handleRevise = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!feedbackInput.trim() || !onRevise) return;
-    setIsRevising(true);
-    try {
-      await onRevise(feedbackInput.trim());
-      setFeedbackInput('');
-      setActiveTab('content');
-    } finally {
-      setIsRevising(false);
-    }
-  };
-
 
   const handleExport = async (fmt: 'markdown' | 'docx' | 'pdf') => {
     setExportingFormat(fmt);
@@ -95,8 +74,6 @@ export const ReportView: React.FC<ReportViewProps> = ({
       </div>
     );
   }
-
-  const latestReview = report.reviews && report.reviews.length > 0 ? report.reviews[0] : undefined;
 
   return (
     <div className="space-y-6">

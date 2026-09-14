@@ -18,14 +18,14 @@ async def search_academic_papers(
     sources: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """
-    Công cụ ADK: Tìm kiếm bài báo học thuật từ ArXiv và Semantic Scholar theo câu truy vấn nghiên cứu.
+    Công cụ ADK: Tìm kiếm bài báo học thuật từ OpenAlex, arXiv và Semantic Scholar theo câu truy vấn nghiên cứu.
     
     Tham số:
         query: Từ khóa hoặc câu truy vấn học thuật.
         year_start: Năm xuất bản bắt đầu (tùy chọn).
         year_end: Năm xuất bản kết thúc (tùy chọn).
         max_results: Số lượng bài báo tối đa cần thu thập.
-        sources: Danh sách các nguồn tìm kiếm (ví dụ: ['arxiv', 'semantic_scholar']).
+        sources: Danh sách các nguồn tìm kiếm (ví dụ: ['openalex', 'arxiv', 'semantic_scholar']).
     
     Trả về:
         Danh sách các dictionary chứa thông tin: tiêu đề, tác giả, tóm tắt, năm, nơi công bố, URL, DOI.

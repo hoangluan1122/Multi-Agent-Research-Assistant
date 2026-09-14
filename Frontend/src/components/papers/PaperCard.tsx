@@ -54,6 +54,8 @@ export const PaperCard: React.FC<PaperCardProps> = ({
         return <Badge variant="primary">arXiv</Badge>;
       case 'semantic_scholar':
         return <Badge variant="info">Semantic Scholar</Badge>;
+      case 'openalex':
+        return <Badge variant="warning">OpenAlex</Badge>;
       case 'upload':
         return <Badge variant="success">{t.uploadedPdfBadge}</Badge>;
       default:

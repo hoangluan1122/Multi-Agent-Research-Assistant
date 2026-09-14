@@ -55,7 +55,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
   const { t } = useI18n();
   const [query, setQuery] = useState(session.topic);
   const [maxResults, setMaxResults] = useState(5);
-  const [sources, setSources] = useState<string[]>(['arxiv', 'semantic_scholar']);
+  const [sources, setSources] = useState<string[]>(['openalex']);
   const [yearStart, setYearStart] = useState<string>('');
   const [yearEnd, setYearEnd] = useState<string>('');
   const [isSearching, setIsSearching] = useState(false);
@@ -169,6 +169,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
               </span>
 
               {[
+                { id: 'openalex', label: 'OpenAlex' },
                 { id: 'arxiv', label: 'arXiv' },
                 { id: 'semantic_scholar', label: 'Semantic Scholar' },
               ].map((src) => {
