@@ -4,6 +4,7 @@ Hỗ trợ Google GenAI SDK (Gemini 2.5/3.7), OpenAI API / OpenRouter / Ollama v
 """
 
 import json
+import re
 import asyncio
 import logging
 from typing import Optional, Dict, Any, List
@@ -199,7 +200,7 @@ class LLMService:
                 "abstract_vi": abstract_text
             })
         elif "keywords" in prompt_lower or "extract" in prompt_lower:
-            return "transformer deep learning medical segmentation"
+            return self._mock_keyword_extraction(prompt)
         elif "summary" in prompt_lower or "synthesize" in prompt_lower or "so sánh" in prompt_lower:
             return (
                 "Tổng quan các công trình nghiên cứu nổi bật cho thấy xu hướng tích hợp cơ chế Attention "
@@ -225,6 +226,18 @@ class LLMService:
                 "nén mô hình (Knowledge Distillation) và áp dụng hệ thống đa tác tử (Multi-Agent) để tự động hóa quy trình phân tích.\n\n"
                 "## 6. Danh mục Tài liệu Tham khảo\n"
             )
+
+    def _mock_keyword_extraction(self, prompt: str) -> str:
+        """Derive query-specific fallback keywords instead of returning a fixed topic."""
+        match = re.search(r"topic or question:\s*'([^']+)'", prompt, flags=re.IGNORECASE)
+        topic = match.group(1) if match else prompt
+        tokens = re.findall(r"[\w-]+", topic.lower(), flags=re.UNICODE)
+        stopwords = {
+            "a", "an", "and", "are", "as", "for", "from", "given", "in", "of", "or",
+            "question", "research", "terms", "the", "this", "topic", "what", "with",
+        }
+        keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
+        return " ".join(keywords[:5]) or topic.strip()
 
 # Khởi tạo singleton instance cho LLMService
 llm_service = LLMService()

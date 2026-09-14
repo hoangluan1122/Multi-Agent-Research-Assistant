@@ -5,6 +5,7 @@ Tự động phân tích XML/JSON, khử trùng lặp tiêu đề, lọc theo n�
 
 import xml.etree.ElementTree as ET
 import logging
+import re
 from typing import List, Dict, Any, Optional
 import httpx
 
@@ -18,6 +19,13 @@ class AcademicSearchService:
     - Khử trùng lặp dựa trên chuỗi tiêu đề chuẩn hóa.
     - Dự phòng dữ liệu mẫu chuẩn khi mạng gián đoạn.
     """
+    _STOPWORDS = {
+        "a", "an", "and", "are", "as", "at", "based", "by", "for", "from", "in",
+        "into", "latest", "method", "methods", "model", "models", "new", "of",
+        "on", "or", "paper", "papers", "research", "study", "survey", "the",
+        "to", "using", "with",
+    }
+
     def __init__(self):
         # URL Endpoint tìm kiếm API của ArXiv và Semantic Scholar
         self.arxiv_base_url = "http://export.arxiv.org/api/query"
@@ -45,13 +53,13 @@ class AcademicSearchService:
             arxiv_results = await self._search_arxiv(query, max_results=max_results)
             results.extend(arxiv_results)
 
-        # 2. Tìm kiếm bổ sung từ Semantic Scholar nếu chưa đủ số lượng
-        if "semantic_scholar" in sources and len(results) < max_results:
+        # 2. Tìm kiếm từ Semantic Scholar khi người dùng đã chọn nguồn này.
+        if "semantic_scholar" in sources:
             s2_results = await self._search_semantic_scholar(
                 query,
                 year_start=year_start,
                 year_end=year_end,
-                max_results=max_results - len(results)
+                max_results=max_results
             )
             results.extend(s2_results)
 
@@ -71,11 +79,12 @@ class AcademicSearchService:
                 filtered.append(p)
             deduped = filtered
 
-        # Trường hợp mạng lỗi hoặc không có kết quả từ API ngoài -> dùng dữ liệu mẫu thực tế
-        if not deduped:
-            deduped = self._generate_fallback_papers(query, max_results)
+        ranked = self._rank_by_query_match(query, deduped)
+        if ranked:
+            return ranked[:max_results]
 
-        return deduped[:max_results]
+        # Trường hợp mạng lỗi hoặc API ngoài không trả kết quả phù hợp -> dùng dữ liệu mẫu theo đúng query.
+        return self._generate_fallback_papers(query, max_results)
 
     async def _search_arxiv(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """Gửi request tìm kiếm đến API ArXiv và trả về danh sách bài báo trích xuất."""
@@ -202,11 +211,81 @@ class AcademicSearchService:
         seen_titles = set()
         unique_papers = []
         for p in papers:
-            norm_title = "".join(filter(str.isalnum, p["title"].lower()))
+            norm_title = "".join(filter(str.isalnum, (p.get("title") or "").lower()))
             if norm_title and norm_title not in seen_titles:
                 seen_titles.add(norm_title)
                 unique_papers.append(p)
         return unique_papers
+
+    def _tokenize(self, text: str) -> List[str]:
+        """Split text into comparable tokens while keeping Unicode search terms."""
+        return re.findall(r"[\w]+", (text or "").lower(), flags=re.UNICODE)
+
+    def _query_terms(self, query: str) -> List[str]:
+        """Build a compact set of meaningful query terms for relevance scoring."""
+        terms = [
+            token
+            for token in self._tokenize(query)
+            if len(token) > 1 and token not in self._STOPWORDS
+        ]
+        return list(dict.fromkeys(terms))
+
+    def _term_matches(self, term: str, corpus_terms: set[str]) -> bool:
+        """Allow simple singular/plural matches without broad fuzzy matching."""
+        variants = {term, term.rstrip("s")}
+        for candidate in corpus_terms:
+            candidate_variants = {candidate, candidate.rstrip("s")}
+            if variants.intersection(candidate_variants):
+                return True
+        return False
+
+    def _rank_by_query_match(
+        self,
+        query: str,
+        papers: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """Score and filter papers against the user's query before showing them."""
+        query_terms = self._query_terms(query)
+        if not query_terms:
+            return papers
+
+        scored: List[Dict[str, Any]] = []
+        for paper in papers:
+            title = paper.get("title") or ""
+            abstract = paper.get("abstract") or ""
+            venue = paper.get("venue") or ""
+            title_terms = set(self._tokenize(title))
+            all_terms = set(self._tokenize(f"{title} {abstract} {venue}"))
+
+            matched_terms = [
+                term for term in query_terms if self._term_matches(term, all_terms)
+            ]
+            title_matches = [
+                term for term in query_terms if self._term_matches(term, title_terms)
+            ]
+            if not matched_terms:
+                continue
+
+            coverage = len(matched_terms) / len(query_terms)
+            title_coverage = len(title_matches) / len(query_terms)
+            minimum_coverage = 0.5 if len(query_terms) <= 2 else 0.34
+            if coverage < minimum_coverage and not title_matches:
+                continue
+
+            phrase = " ".join(query_terms)
+            searchable_text = " ".join(self._tokenize(f"{title} {abstract}"))
+            phrase_bonus = 0.1 if phrase and phrase in searchable_text else 0.0
+            score = min(0.99, 0.15 + (0.5 * coverage) + (0.25 * title_coverage) + phrase_bonus)
+
+            ranked_paper = dict(paper)
+            ranked_paper["relevance_score"] = round(score, 2)
+            scored.append(ranked_paper)
+
+        return sorted(
+            scored,
+            key=lambda item: (item.get("relevance_score") or 0, item.get("year") or 0),
+            reverse=True
+        )
 
     def _generate_fallback_papers(self, query: str, count: int = 5) -> List[Dict[str, Any]]:
         """Tạo danh sách tài liệu mẫu học thuật phù hợp khi mất mạng hoặc API ngoài bị giới hạn lưu lượng (rate limit)."""

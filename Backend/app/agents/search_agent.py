@@ -4,6 +4,7 @@ Chịu trách nhiệm tối ưu hóa từ khóa học thuật tiếng Anh qua LL
 """
 
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -152,7 +153,29 @@ Respond in JSON:
         prompt = f"Given this research topic or question: '{topic}', extract 3-5 concise academic search keywords (English) for searching academic papers. Return ONLY the search terms separated by space."
         result = await llm_service.generate_text(prompt, temperature=0.1)
         cleaned = result.strip().replace('"', '').replace('\n', ' ')
-        return cleaned if cleaned else topic
+        if not cleaned or self._is_known_unrelated_fallback(topic, cleaned):
+            return self._fallback_search_query(topic)
+        return cleaned
+
+    def _fallback_search_query(self, topic: str) -> str:
+        """Build deterministic keywords from the user's topic when the LLM fallback is unavailable."""
+        tokens = re.findall(r"[\w-]+", topic.lower(), flags=re.UNICODE)
+        stopwords = {
+            "a", "an", "and", "are", "as", "for", "from", "in", "of", "or",
+            "research", "study", "the", "to", "with",
+        }
+        keywords = [token for token in tokens if len(token) > 1 and token not in stopwords]
+        return " ".join(keywords[:6]) or topic
+
+    def _is_known_unrelated_fallback(self, topic: str, refined_query: str) -> bool:
+        """Reject the legacy mock keyword response when it clearly does not match the topic."""
+        legacy_mock = "transformer deep learning medical segmentation"
+        if refined_query.strip().lower() != legacy_mock:
+            return False
+
+        topic_terms = set(self._fallback_search_query(topic).split())
+        refined_terms = set(refined_query.lower().split())
+        return topic_terms.isdisjoint(refined_terms)
 
 # Khởi tạo singleton instance cho SearchAgent
 search_agent = SearchAgent()

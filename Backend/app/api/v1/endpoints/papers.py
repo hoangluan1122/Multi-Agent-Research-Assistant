@@ -56,7 +56,7 @@ async def search_academic_papers(
 
     verify_session_access(session, current_user)
 
-    await search_agent.run(
+    search_result = await search_agent.run(
         db=db,
         session_id=payload.session_id,
         query=payload.query,
@@ -66,14 +66,19 @@ async def search_academic_papers(
         sources=payload.sources
     )
 
-    # Trả về danh sách bài báo đã cập nhật kèm phân tích
+    paper_ids = [item["id"] for item in search_result.get("papers", []) if item.get("id")]
+    if not paper_ids:
+        return []
+
+    # Trả về đúng batch bài báo của lần tìm kiếm hiện tại kèm phân tích
     p_stmt = (
         select(Paper)
-        .where(Paper.session_id == payload.session_id)
+        .where(Paper.id.in_(paper_ids))
         .options(selectinload(Paper.analysis))
     )
     p_res = await db.execute(p_stmt)
-    return p_res.scalars().all()
+    papers_by_id = {paper.id: paper for paper in p_res.scalars().all()}
+    return [papers_by_id[paper_id] for paper_id in paper_ids if paper_id in papers_by_id]
 
 # @trace: REQ-001, REQ-002
 @router.post("/upload", response_model=PaperResponse)
