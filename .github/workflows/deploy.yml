@@ -1,0 +1,45 @@
+name: Deploy PaperFlow
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            cd /var/www/Multi-Agent-Research-Assistant
+
+            echo "Fetching latest code..."
+            git fetch origin main
+
+            echo "Resetting to latest main..."
+            git reset --hard origin/main
+
+            echo "Installing backend dependencies..."
+            /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install -r Backend/requirements.txt
+
+            echo "Building frontend..."
+            cd Frontend
+            npm ci
+            npm run build
+
+            echo "Restarting PaperFlow..."
+            systemctl restart paperflow
+
+            echo "Checking service..."
+            sleep 3
+            systemctl is-active --quiet paperflow
+
+            echo "Deploy successful!"
