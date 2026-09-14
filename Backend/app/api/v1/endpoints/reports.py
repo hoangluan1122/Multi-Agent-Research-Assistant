@@ -20,6 +20,7 @@ from app.schemas.report import (
     ReviewResponse,
     CitationResponse,
     ExportRequest,
+    ReportReviseRequest,
 )
 
 router = APIRouter(prefix="/reports", tags=["Reports & Export (UC009, UC010, UC012)"])
@@ -112,4 +113,57 @@ async def export_report_file(
         media_type=media_type,
         filename=filename
     )
+
+@router.post("/{report_id}/revise", response_model=ReportResponse)
+async def revise_report_with_feedback(
+    report_id: str,
+    payload: ReportReviseRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    UC011: Chỉnh sửa và soạn thảo lại báo cáo dựa trên góp ý / feedback cụ thể của người dùng.
+    - Lấy thông tin bản thảo hiện tại và số phiên bản.
+    - Gọi WritingAgent thực hiện sửa đổi với feedback của người dùng để tạo Version mới (version = n + 1).
+    - Tự động kích hoạt ReviewAgent để chấm điểm và kiểm tra độ bao phủ trích dẫn cho bản mới.
+    """
+    stmt = (
+        select(Report)
+        .where(Report.id == report_id)
+        .options(selectinload(Report.reviews))
+    )
+    res = await db.execute(stmt)
+    report = res.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    from app.agents.writing_agent import writing_agent
+    from app.agents.review_agent import review_agent
+
+    # 1. Soạn thảo bản mới dựa trên feedback
+    next_version = report.version + 1
+    writing_res = await writing_agent.run(
+        db=db,
+        session_id=report.session_id,
+        comparison_table=report.comparison_table,
+        feedback=payload.feedback,
+        version=next_version
+    )
+    new_report_id = writing_res["report_id"]
+
+    # 2. Thẩm định chất lượng bản thảo mới
+    await review_agent.run(
+        db=db,
+        session_id=report.session_id,
+        report_id=new_report_id
+    )
+
+    # 3. Trả về báo cáo phiên bản mới hoàn chỉnh
+    new_stmt = (
+        select(Report)
+        .where(Report.id == new_report_id)
+        .options(selectinload(Report.reviews))
+    )
+    new_res = await db.execute(new_stmt)
+    return new_res.scalar_one()
+
 

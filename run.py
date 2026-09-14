@@ -8,6 +8,16 @@ import sys
 import subprocess
 from pathlib import Path
 
+# Đảm bảo console trên Windows hỗ trợ Unicode / UTF-8
+if sys.platform == "win32":
+    try:
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # Đường dẫn thư mục gốc và các thư mục thành phần
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT_DIR / "Frontend"

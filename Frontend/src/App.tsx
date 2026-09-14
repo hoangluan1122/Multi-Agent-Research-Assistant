@@ -133,13 +133,18 @@ export function App() {
   }, [activeSession, loadSessionDetails]);
 
   // 3. Workflow Real-time Polling
+  // NOTE: Backend trả status UPPERCASE (RUNNING, COMPLETED, FAILED),
+  // nên phải .toLowerCase() trước khi so sánh
+  const wfStatusNorm = workflowStatus?.status?.toLowerCase();
+  const sessionStatusNorm = activeSession?.status?.toLowerCase();
   const isWorkflowRunning =
-    workflowStatus?.status === 'running' ||
-    activeSession?.status === 'searching' ||
-    activeSession?.status === 'reading' ||
-    activeSession?.status === 'summarizing' ||
-    activeSession?.status === 'drafting' ||
-    activeSession?.status === 'reviewing';
+    wfStatusNorm === 'running' ||
+    sessionStatusNorm === 'running' ||
+    sessionStatusNorm === 'searching' ||
+    sessionStatusNorm === 'reading' ||
+    sessionStatusNorm === 'summarizing' ||
+    sessionStatusNorm === 'drafting' ||
+    sessionStatusNorm === 'reviewing';
 
   useEffect(() => {
     if (!activeSession || !isWorkflowRunning) {
@@ -152,14 +157,17 @@ export function App() {
         const status = await workflowService.getWorkflowStatus(activeSession.id);
         setWorkflowStatus(status);
 
-        if (status.status === 'completed') {
+        // Normalize status về lowercase để so sánh an toàn
+        const normalizedStatus = status.status?.toLowerCase();
+
+        if (normalizedStatus === 'completed') {
           addToast('success', 'Quy trình Multi-Agent đã hoàn thành thành công!');
           // Refresh session details & session list
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
           loadSessionDetails(updatedSession);
           sessionService.getSessions().then(setSessions);
-        } else if (status.status === 'failed') {
+        } else if (normalizedStatus === 'failed') {
           addToast('error', `Quy trình bị lỗi: ${status.error_message || 'Không rõ'}`);
           const updatedSession = await sessionService.getSession(activeSession.id);
           setActiveSession(updatedSession);
@@ -218,15 +226,24 @@ export function App() {
       addToast('info', 'Đã kích hoạt hệ thống Multi-Agent!');
 
       // Set running state locally to start polling
+      // Dùng 'RUNNING' (uppercase) để nhất quán với backend
       setWorkflowStatus((prev) => ({
         session_id: activeSession.id,
-        status: 'running',
-        current_step: 'Bắt đầu quy trình...',
+        status: 'RUNNING' as any,
+        current_step: 'STARTING_WORKFLOW',
         current_agent: 'SearchAgent',
         progress_percentage: 5,
         message: 'Khởi chạy các Agent...',
         agent_runs: prev?.agent_runs || [],
       }));
+
+      // Bắt đầu refresh ngay lập tức sau 3 giây để lấy status thực từ server
+      setTimeout(async () => {
+        try {
+          const freshStatus = await workflowService.getWorkflowStatus(activeSession.id);
+          setWorkflowStatus(freshStatus);
+        } catch (e) { /* ignore */ }
+      }, 3000);
     } catch (err: any) {
       addToast('error', `Khởi chạy workflow thất bại: ${err.message}`);
     }
@@ -325,6 +342,24 @@ export function App() {
       addToast('success', `Đã tải về file ${format.toUpperCase()} thành công.`);
     } catch (err: any) {
       addToast('error', `Xuất file thất bại: ${err.message}`);
+    }
+  };
+
+  // Handler: Revise Report with User Feedback (UC011)
+  const handleReviseReport = async (feedbackText: string) => {
+    if (!report || !activeSession) return;
+
+    try {
+      addToast('info', 'WritingAgent đang soạn thảo lại theo góp ý...');
+      const updatedReport = await reportService.reviseReport(report.id, feedbackText);
+      setReport(updatedReport);
+      const reportCitations = await reportService
+        .getReportCitations(updatedReport.id)
+        .catch(() => []);
+      setCitations(reportCitations);
+      addToast('success', `Đã cập nhật báo cáo lên Phiên bản ${updatedReport.version}.0 thành công!`);
+    } catch (err: any) {
+      addToast('error', `Chỉnh sửa báo cáo thất bại: ${err.message}`);
     }
   };
 
@@ -442,7 +477,9 @@ export function App() {
                   citations={citations}
                   onExport={handleExportReport}
                   onTriggerWorkflow={() => setActiveTab('workflow')}
+                  onRevise={handleReviseReport}
                 />
+
               )}
             </div>
           ) : (

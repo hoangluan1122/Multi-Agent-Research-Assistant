@@ -104,6 +104,23 @@ class WritingAgent(BaseAgent):
                     f"Limitations: {ana.limitations if ana else 'N/A'}\n"
                 )
 
+            # 3.1 Sử dụng Retrieval (RAG) từ Vector Store (Qdrant) theo yêu cầu nhiệm vụ
+            retrieval_query = f"{session.topic} {session.research_question or ''}".strip()
+            retrieved_chunks = await retrieve_document_chunks(
+                session_id=session_id,
+                query=retrieval_query,
+                top_k=6
+            )
+            rag_context_lines = []
+            for chunk in retrieved_chunks:
+                meta = chunk.get("metadata", {})
+                title_c = meta.get("paper_title", "Paper")
+                page_c = meta.get("page_number", "N/A")
+                score_c = chunk.get("score", 0.0)
+                txt_c = chunk.get("text", "")[:350]
+                rag_context_lines.append(f"- [{title_c} - Trang {page_c} (Điểm {score_c:.2f})]: {txt_c}")
+            rag_evidence_text = "\n".join(rag_context_lines) if rag_context_lines else "No specific text chunks retrieved."
+
             # 4. Tạo prompt chi tiết yêu cầu LLM soạn thảo theo chuẩn mực
             prompt = f"""You are a distinguished scientific academic researcher. Write a comprehensive, rigorous Literature Review report.
 Topic: {session.topic}
@@ -111,6 +128,9 @@ Research Question: {session.research_question or 'Analyze key state-of-the-art d
 
 Available Papers & Citations:
 {"---".join(papers_context)}
+
+Evidence & Paragraph Chunks from Vector RAG Retrieval:
+{rag_evidence_text}
 
 Synthesis & Comparison Insights:
 {synthesized_summary or 'See individual paper details.'}

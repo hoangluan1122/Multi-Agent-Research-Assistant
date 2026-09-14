@@ -36,3 +36,4 @@ Backend/uploads/
 exports/
 Backend/exports/
 
+qdrant_storage/

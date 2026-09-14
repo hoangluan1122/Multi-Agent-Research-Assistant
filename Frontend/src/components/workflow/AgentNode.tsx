@@ -37,9 +37,14 @@ export const AgentNode: React.FC<AgentNodeProps> = ({
   latestRun,
   onClick,
 }) => {
-  const isCurrentlyRunning = currentActiveAgent === name || latestRun?.status === 'running';
-  const isCompleted = latestRun?.status === 'completed';
-  const isFailed = latestRun?.status === 'failed';
+  // Backend trả status UPPERCASE nên phải normalize về lowercase
+  const latestRunStatus = latestRun?.status?.toLowerCase();
+  // Ưu tiên: Completed > Failed > Running. Nếu đã hoàn thành thì không hiện "Đang chạy"
+  const isCompleted = latestRunStatus === 'completed';
+  const isFailed = latestRunStatus === 'failed';
+  const isCurrentlyRunning = !isCompleted && !isFailed && (
+    currentActiveAgent === name || latestRunStatus === 'running'
+  );
 
   const getIcon = () => {
     switch (name) {
