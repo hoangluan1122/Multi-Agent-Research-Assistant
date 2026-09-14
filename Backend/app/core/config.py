@@ -61,8 +61,8 @@ class Settings(BaseSettings):
             return v
         return ["*"]
 
-    # Cấu hình Database (Mặc định SQLite Async hoặc PostgreSQL nếu có cấu hình)
-    DATABASE_URL: str = "sqlite+aiosqlite:///./paperflow.db"
+    # Cấu hình Database (Mặc định kết nối Neon Serverless PostgreSQL trên Cloud)
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require"
 
     # Cấu hình Vector Database (Qdrant)
     QDRANT_HOST: str = "localhost"

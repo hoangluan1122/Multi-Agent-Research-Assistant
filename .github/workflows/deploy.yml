@@ -30,6 +30,18 @@ jobs:
             echo "Installing backend dependencies..."
             /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install -r Backend/requirements.txt
 
+            echo "Configuring Neon PostgreSQL..."
+            mkdir -p Backend
+            if [ -f "Backend/.env" ]; then
+              if grep -q "^DATABASE_URL=" Backend/.env; then
+                sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require|' Backend/.env
+              else
+                echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' >> Backend/.env
+              fi
+            else
+              echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' > Backend/.env
+            fi
+
             echo "Building frontend..."
             cd Frontend
             npm ci
