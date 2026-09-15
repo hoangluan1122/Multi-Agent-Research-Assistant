@@ -115,7 +115,7 @@ class LLMService:
             nonlocal last_error
             api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
             if api_key and not api_key.startswith("your_") and len(api_key) > 15:
-                official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+                official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash"]
                 clean_target = target_model
                 if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
                     clean_target = "gemini-2.0-flash"
@@ -147,7 +147,7 @@ class LLMService:
                             continue
 
                 if hasattr(self, 'legacy_genai') and self.legacy_genai:
-                    for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+                    for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
                         try:
                             g_model = self.legacy_genai.GenerativeModel(
                                 model_name=m_name,

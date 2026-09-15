@@ -200,7 +200,7 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
     clean_target = target_model
     if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
         clean_target = "gemini-2.0-flash"
-    candidate_models = [clean_target, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    candidate_models = [clean_target, "gemini-2.0-flash", "gemini-1.5-flash"]
     models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
     last_err = None
 
@@ -227,7 +227,20 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                         "response": response.text.strip()
                     }
             except Exception as e:
-                last_err = str(e)
+                err_str = str(e)
+                last_err = err_str
+                # Nếu API key không hợp lệ hoặc bị vô hiệu hóa, thông báo ngay lập tức
+                if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa API Google Gemini không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại khóa API được cấp từ https://aistudio.google.com/app/apikey."
+                    }
+                # Nếu tài khoản bị cạn kiệt hạn mức quota
+                if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
+                    }
                 continue
     except Exception as e:
         last_err = str(e)
@@ -236,7 +249,7 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
     try:
         import google.generativeai as gai
         gai.configure(api_key=api_key)
-        for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+        for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
             try:
                 g_model = gai.GenerativeModel(model_name=m_name)
                 response = await asyncio.to_thread(
@@ -251,7 +264,18 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                         "response": response.text.strip()
                     }
             except Exception as e:
-                last_err = str(e)
+                err_str = str(e)
+                last_err = err_str
+                if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa API Google Gemini không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại khóa API được cấp từ https://aistudio.google.com/app/apikey."
+                    }
+                if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
+                    }
                 continue
     except Exception as e:
         last_err = str(e)
