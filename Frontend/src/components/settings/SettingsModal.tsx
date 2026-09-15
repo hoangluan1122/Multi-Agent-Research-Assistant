@@ -292,8 +292,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     key={p.id}
                     onClick={() => {
                       setProvider(p.id);
-                      if (p.id === 'gemini') setModel('gemini-2.0-flash');
-                      if (p.id === 'openai') setModel('gpt-4o-mini');
+                      if (p.id === 'gemini') {
+                        setModel('gemini-2.0-flash');
+                        if (!geminiKey && (openaiKey.startsWith('AQ.') || openaiKey.startsWith('AIza'))) {
+                          setGeminiKey(openaiKey);
+                        }
+                      }
+                      if (p.id === 'openai') {
+                        setModel('gpt-4o-mini');
+                        if (!openaiKey && geminiKey.startsWith('sk-')) {
+                          setOpenaiKey(geminiKey);
+                        }
+                      }
                       if (p.id === 'groq') setModel('llama-3.3-70b-versatile');
                       if (p.id === 'openrouter') setModel('deepseek/deepseek-chat');
                     }}
@@ -491,6 +501,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
                 <span>{testResult.message}</span>
               </div>
+              {testResult.status === 'error' && testResult.message.includes('Google Gemini') && provider !== 'gemini' && (
+                <div className="mt-2 pt-2 border-t border-rose-500/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProvider('gemini');
+                      setModel('gemini-2.0-flash');
+                      if (openaiKey.startsWith('AQ.') || openaiKey.startsWith('AIza')) {
+                        setGeminiKey(openaiKey);
+                      }
+                      setTestResult(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold transition-all shadow-md"
+                  >
+                    <span>👉 Bấm vào đây để tự động chọn Google Gemini & chuyển khóa</span>
+                  </button>
+                </div>
+              )}
               {testResult.response && (
                 <p className="mt-1 text-[11px] font-mono text-gray-300">
                   {t.aiResponseLabel} "{testResult.response}"
