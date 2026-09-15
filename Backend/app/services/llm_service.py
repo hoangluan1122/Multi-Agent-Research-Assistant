@@ -10,6 +10,7 @@ import logging
 from typing import Optional, Dict, Any, List
 from app.core.config import settings
 
+import time
 logger = logging.getLogger("paperflow.llm")
 
 class LLMService:
@@ -23,6 +24,8 @@ class LLMService:
     def __init__(self):
         self.provider = settings.LLM_PROVIDER.lower()
         self.default_model = settings.DEFAULT_LLM_MODEL
+        self._gemini_lock = asyncio.Lock()
+        self._last_gemini_request = 0.0
         self._init_clients()
 
     def _init_clients(self):
@@ -59,6 +62,45 @@ class LLMService:
             except Exception as e:
                 logger.warning(f"Failed to initialize OpenAI client: {e}")
 
+
+    async def _call_gemini(self, model: str, prompt: str, config: Any) -> Any:
+        """Gọi Gemini theo hàng đợi chung để không vượt giới hạn request/phút."""
+        gemini_client: Any = self.genai_client
+        if gemini_client is None:
+            raise RuntimeError("Gemini client chưa được khởi tạo.")
+
+        async with self._gemini_lock:
+            elapsed = time.monotonic() - self._last_gemini_request
+            wait_seconds = 13.0 - elapsed  # khoảng 4–5 request/phút
+            if wait_seconds > 0:
+                await asyncio.sleep(wait_seconds)
+
+            last_error: Optional[Exception] = None
+            for attempt in range(3):
+                try:
+                    self._last_gemini_request = time.monotonic()
+                    return await asyncio.wait_for(
+                        gemini_client.aio.models.generate_content(
+                            model=model,
+                            contents=prompt,
+                            config=config,
+                        ),
+                        timeout=90.0,
+                    )
+                except Exception as error:
+                    last_error = error
+                    message = str(error)
+                    is_rate_limited = any(token in message for token in (
+                        "429", "RESOURCE_EXHAUSTED", "rate limit"
+                    ))
+                    if not is_rate_limited or attempt == 2:
+                        break
+                    retry_after = 30 * (attempt + 1)
+                    logger.warning("Gemini rate-limited; retrying in %ss: %s", retry_after, message)
+                    await asyncio.sleep(retry_after)
+
+            raise RuntimeError(f"Gemini không phản hồi được: {last_error}")
+
     # @trace: REQ-013
     async def generate_text(
         self,
@@ -68,62 +110,36 @@ class LLMService:
         model: Optional[str] = None
     ) -> str:
         """
-        Sinh nội dung văn bản tự do từ Prompt và System Instruction:
-        1. Ưu tiên thử gọi Google GenAI SDK với các model khả dụng (Gemini 2.0 / 1.5 Flash / Pro).
-        2. Nếu thất bại hoặc cấu hình OpenAI -> Gọi OpenAI API.
-        3. Nếu không có API Key hợp lệ -> Dùng bộ sinh phản hồi học thuật giả lập thông minh bám sát chủ đề.
+        Sinh nội dung từ provider đã được cấu hình.
+
+        Khi provider là Gemini/OpenAI, lỗi phải được trả về cho workflow.
+        Tuyệt đối không thay lỗi bằng báo cáo mẫu vì nội dung mẫu có thể lạc đề.
         """
         target_model = model or self.default_model
 
-        # 1. Thử gọi Google GenAI SDK (google-genai v2.x)
+        # 1. Gemini: chỉ gọi model được cấu hình, không thử các model cũ.
         api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
-        if api_key and not api_key.startswith("your_") and len(api_key) > 15:
-            candidate_models = [target_model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash"]
-            models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
-            
-            if self.genai_client:
-                for m_name in models_to_try:
-                    try:
-                        from google.genai import types
-                        config = types.GenerateContentConfig(
-                            temperature=temperature,
-                            system_instruction=system_instruction
-                        )
-                        response = await asyncio.wait_for(
-                            self.genai_client.aio.models.generate_content(
-                                model=m_name,
-                                contents=prompt,
-                                config=config
-                            ),
-                            timeout=25.0
-                        )
-                        if response and response.text:
-                            return response.text
-                    except Exception as e:
-                        logger.warning(f"Google GenAI model {m_name} failed: {e}")
-                        continue
+        if self.provider == "gemini":
+            if not api_key or api_key.startswith("your_") or self.genai_client is None:
+                raise RuntimeError("Gemini chưa được cấu hình API key hợp lệ.")
 
-            # Thử qua legacy google.generativeai nếu có
-            if hasattr(self, 'legacy_genai') and self.legacy_genai:
-                for m_name in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]:
-                    try:
-                        g_model = self.legacy_genai.GenerativeModel(
-                            model_name=m_name,
-                            system_instruction=system_instruction
-                        )
-                        response = await asyncio.to_thread(
-                            g_model.generate_content,
-                            prompt,
-                            generation_config={"temperature": temperature}
-                        )
-                        if response and response.text:
-                            return response.text
-                    except Exception as e:
-                        logger.warning(f"Legacy Gemini model {m_name} failed: {e}")
-                        continue
+            from google.genai import types
+            config = types.GenerateContentConfig(
+                temperature=temperature,
+                system_instruction=system_instruction,
+            )
+            response = await self._call_gemini(
+                model=target_model,
+                prompt=prompt,
+                config=config,
+            )
+            response_text = getattr(response, "text", None)
+            if response_text and response_text.strip():
+                return response_text.strip()
+            raise RuntimeError("Gemini trả về phản hồi rỗng; không tạo báo cáo mẫu.")
 
-        # 2. Thử gọi OpenAI hoặc API tương thích OpenAI
-        if self.openai_client and settings.OPENAI_API_KEY:
+        # 2. OpenAI hoặc API tương thích OpenAI
+        if self.provider in {"openai", "openrouter", "groq"} and self.openai_client and settings.OPENAI_API_KEY:
             try:
                 messages = []
                 if system_instruction:
@@ -138,13 +154,19 @@ class LLMService:
                     ),
                     timeout=15.0
                 )
-                return response.choices[0].message.content or ""
+                content = response.choices[0].message.content or ""
+                if content.strip():
+                    return content.strip()
+                raise RuntimeError("LLM trả về phản hồi rỗng.")
             except Exception as e:
-                logger.error(f"OpenAI generation error: {e}")
+                raise RuntimeError(f"Không thể gọi {self.provider}: {e}") from e
 
-        # 3. Sử dụng bộ phản hồi mô phỏng học thuật (Heuristic fallback)
-        logger.info("Using intelligent academic fallback synthesis engine.")
-        return self._mock_generation(prompt, system_instruction)
+        # 3. Mock chỉ dành cho demo offline do người dùng chủ động cấu hình.
+        if self.provider == "mock":
+            logger.warning("Using mock LLM output because LLM_PROVIDER=mock.")
+            return self._mock_generation(prompt, system_instruction)
+
+        raise RuntimeError(f"LLM provider '{self.provider}' chưa được cấu hình đúng hoặc thiếu API key.")
 
     async def generate_json(
         self,

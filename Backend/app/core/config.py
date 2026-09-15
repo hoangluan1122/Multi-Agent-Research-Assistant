@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    DEFAULT_LLM_MODEL: str = "gemini-3.7-flash"
+    DEFAULT_LLM_MODEL: str = "gemini-3.6-flash"
     TEMPERATURE: float = 0.2
 
     # Cấu hình quy trình Multi-Agent & xử lý tài liệu
