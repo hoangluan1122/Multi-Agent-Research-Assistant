@@ -5,6 +5,7 @@ Hỗ trợ tìm kiếm học thuật (ArXiv/Semantic Scholar), tải lên tài l
 
 import os
 import shutil
+import asyncio
 from typing import List, Optional
 try:
     import magic
@@ -31,7 +32,7 @@ from app.schemas.paper import (
     PaperSelectionUpdate,
 )
 
-from app.services.llm_service import llm_service
+from app.services.paper_translation import translate_content
 
 router = APIRouter(prefix="/papers", tags=["Papers (UC002, UC003, UC004)"])
 
@@ -228,28 +229,20 @@ async def translate_single_paper(paper_id: str, db: AsyncSession = Depends(get_d
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
 
-    prompt = f"""You are a professional scientific translator and researcher.
-Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
-
-Paper Title (EN): {paper.title}
-Abstract (EN): {paper.abstract or 'No abstract provided'}
-
-Respond strictly in JSON format:
-{{
-  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
-  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
-}}
-"""
     try:
-        translated = await llm_service.generate_json(prompt)
+        translated = await translate_content(paper.title, paper.abstract)
         if translated.get("title_vi"):
             paper.title = translated["title_vi"]
         if translated.get("abstract_vi"):
             paper.abstract = translated["abstract_vi"]
         await db.commit()
         await db.refresh(paper)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+    except asyncio.TimeoutError:
+        await db.rollback()
+        raise HTTPException(status_code=504, detail="Dịch quá thời gian chờ. Vui lòng thử lại.")
+    except (RuntimeError, ValueError) as e:
+        await db.rollback()
+        raise HTTPException(status_code=502, detail=str(e))
 
     return paper
 
@@ -268,27 +261,30 @@ async def translate_all_session_papers(session_id: str, db: AsyncSession = Depen
     if not papers:
         return []
 
-    for paper in papers:
-        prompt = f"""You are a professional scientific translator and researcher.
-Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
+    semaphore = asyncio.Semaphore(3)
 
-Paper Title (EN): {paper.title}
-Abstract (EN): {paper.abstract or 'No abstract provided'}
+    async def translate_one(paper):
+        async with semaphore:
+            return await translate_content(paper.title, paper.abstract)
 
-Respond strictly in JSON format:
-{{
-  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
-  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
-}}
-"""
-        try:
-            translated = await llm_service.generate_json(prompt)
-            if translated.get("title_vi"):
-                paper.title = translated["title_vi"]
-            if translated.get("abstract_vi"):
-                paper.abstract = translated["abstract_vi"]
-        except Exception:
-            continue
+    # Complete every translation before mutating any rows: no false partial success.
+    tasks = [asyncio.create_task(translate_one(paper)) for paper in papers]
+    try:
+        translations = await asyncio.wait_for(asyncio.gather(*tasks), timeout=50)
+    except Exception as exc:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await db.rollback()
+        detail = ("Dịch quá thời gian chờ. Hãy dịch từng bài hoặc thử lại."
+                  if isinstance(exc, asyncio.TimeoutError)
+                  else "Không thể dịch toàn bộ bài báo. Chưa lưu thay đổi; vui lòng thử dịch từng bài.")
+        raise HTTPException(status_code=502, detail=detail) from exc
+
+    for paper, translated in zip(papers, translations):
+        paper.title = translated["title_vi"]
+        if paper.abstract:
+            paper.abstract = translated["abstract_vi"]
 
     await db.commit()
     for p in papers:

@@ -66,7 +66,8 @@ class LLMService:
         prompt: str,
         system_instruction: Optional[str] = None,
         temperature: float = 0.2,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        allow_mock: bool = True,
     ) -> str:
         """
         Sinh nội dung văn bản tự do từ Prompt và System Instruction:
@@ -81,6 +82,10 @@ class LLMService:
         if api_key and not api_key.startswith("your_") and len(api_key) > 15:
             candidate_models = [target_model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash"]
             models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+            if not allow_mock:
+                # Interactive translation must use the configured model, not spend
+                # the browser timeout probing older models and legacy SDKs.
+                models_to_try = [target_model]
             
             if self.genai_client:
                 for m_name in models_to_try:
@@ -105,7 +110,7 @@ class LLMService:
                         continue
 
             # Thử qua legacy google.generativeai nếu có
-            if hasattr(self, 'legacy_genai') and self.legacy_genai:
+            if allow_mock and hasattr(self, 'legacy_genai') and self.legacy_genai:
                 for m_name in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]:
                     try:
                         g_model = self.legacy_genai.GenerativeModel(
@@ -143,6 +148,9 @@ class LLMService:
             except Exception as e:
                 logger.error(f"OpenAI generation error: {e}")
 
+        if not allow_mock:
+            raise RuntimeError("Dịch vụ AI không khả dụng. Vui lòng kiểm tra API key, hạn mức hoặc thử lại sau.")
+
         # 3. Sử dụng bộ phản hồi mô phỏng học thuật (Heuristic fallback)
         logger.info("Using intelligent academic fallback synthesis engine.")
         return self._mock_generation(prompt, system_instruction)
@@ -151,7 +159,8 @@ class LLMService:
         self,
         prompt: str,
         system_instruction: Optional[str] = None,
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        allow_mock: bool = True,
     ) -> Dict[str, Any]:
         """
         Sinh kết quả có cấu trúc JSON từ LLM:
@@ -160,7 +169,7 @@ class LLMService:
         - Parse kết quả sang Python Dictionary.
         """
         sys_prompt = (system_instruction or "") + "\n\nCRITICAL: Respond ONLY with valid JSON. No markdown formatting, no backticks, no extra text."
-        raw_text = await self.generate_text(prompt, system_instruction=sys_prompt, temperature=temperature)
+        raw_text = await self.generate_text(prompt, system_instruction=sys_prompt, temperature=temperature, allow_mock=allow_mock)
         
         # Loại bỏ các thẻ code block nếu LLM bao bọc chuỗi JSON
         cleaned = raw_text.strip()
