@@ -51,10 +51,16 @@ class LLMService:
         # Khởi tạo OpenAI Client
         if settings.OPENAI_API_KEY:
             try:
+                import httpx
                 from openai import AsyncOpenAI
+                custom_http = httpx.AsyncClient(
+                    timeout=httpx.Timeout(30.0, connect=10.0),
+                    follow_redirects=True
+                )
                 self.openai_client = AsyncOpenAI(
                     api_key=settings.OPENAI_API_KEY,
-                    base_url=settings.OPENAI_BASE_URL
+                    base_url=settings.OPENAI_BASE_URL,
+                    http_client=custom_http
                 )
                 logger.info("OpenAI client initialized successfully.")
             except Exception as e:

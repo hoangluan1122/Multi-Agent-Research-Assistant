@@ -143,9 +143,16 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                 "status": "error",
                 "message": f"Lỗi kết nối LLM ({target_provider}): Khóa API {target_provider.upper()} chưa được nhập hoặc chưa cấu hình trên hệ thống."
             }
+        http_client = None
         try:
+            import httpx
             from openai import AsyncOpenAI
-            temp_openai = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            # @trace: REQ-042: Khởi tạo httpx.AsyncClient tường minh để tương thích 100% với httpx >= 0.28.0, tránh lỗi proxies kwarg
+            http_client = httpx.AsyncClient(
+                timeout=httpx.Timeout(20.0, connect=10.0),
+                follow_redirects=True
+            )
+            temp_openai = AsyncOpenAI(api_key=api_key, base_url=base_url, http_client=http_client)
             chosen_model = target_model if target_model else ("gpt-4o-mini" if target_provider == "openai" else "llama-3.3-70b-versatile")
             response = await asyncio.wait_for(
                 temp_openai.chat.completions.create(
@@ -166,6 +173,9 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                 "status": "error",
                 "message": f"Lỗi kết nối LLM ({target_provider}): {str(e)}"
             }
+        finally:
+            if http_client:
+                await http_client.aclose()
 
     # Trường hợp 2: Provider là Google Gemini
     api_key = custom_key or (settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else "")
