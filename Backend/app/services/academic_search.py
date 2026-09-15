@@ -57,6 +57,13 @@ class AcademicSearchService:
         "to", "using", "with",
     }
 
+    _VIETNAMESE_STOPWORDS = {
+        "của", "và", "các", "những", "cho", "trong", "đến", "về", "như", "thế",
+        "nào", "là", "gì", "tại", "ở", "với", "được", "bị", "bởi", "do", "ra",
+        "vào", "lại", "này", "đó", "kia", "đây", "đấy", "mo", "hinh", "dai",
+        "dang", "day", "hoc", "sau", "may", "nghien", "cuu", "bai", "bao"
+    }
+
     def __init__(self):
         # URL Endpoint tìm kiếm API của ArXiv, Semantic Scholar, OpenAlex, Crossref và Europe PMC
         self.arxiv_base_url = "https://export.arxiv.org/api/query"
@@ -252,7 +259,30 @@ class AcademicSearchService:
         filtered = self._filter_by_year(deduped, year_start, year_end)
         return self._rank_by_query_match(query, filtered), filtered
 
-    # @trace: REQ-014, REQ-015, REQ-020, REQ-021
+    def _filter_and_rank_batch(
+        self,
+        query: str,
+        papers: List[Dict[str, Any]],
+        year_start: Optional[int] = None,
+        year_end: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Lọc danh sách bài báo theo năm và xếp hạng/lọc độ khớp ngữ nghĩa."""
+        if not papers:
+            return []
+        deduped = self._deduplicate(papers)
+        filtered = []
+        for p in deduped:
+            y = p.get("year")
+            if y:
+                if year_start and y < year_start:
+                    continue
+                if year_end and y > year_end:
+                    continue
+            filtered.append(p)
+        ranked = self._rank_by_query_match(query, filtered)
+        return ranked
+
+    # @trace: REQ-014, REQ-015, REQ-020, REQ-021, REQ-025
     async def search(
         self,
         query: str,
@@ -263,10 +293,9 @@ class AcademicSearchService:
     ) -> List[Dict[str, Any]]:
         """
         Tìm kiếm bài báo học thuật tổng hợp từ các nguồn được chỉ định (ArXiv, Semantic Scholar, Crossref, Europe PMC):
-        - Gửi request bất đồng bộ đến từng nguồn.
-        - Tự động bổ sung từ kho Crossref và Europe PMC nếu kết quả từ ArXiv / Semantic Scholar thiếu hoặc bị rate limit.
+        - Cơ chế tích lũy bài báo hợp lệ (REQ-025): kiểm tra số lượng SAU KHI LỌC để không bỏ qua Crossref/Europe PMC.
         - Khử trùng lặp và lọc theo năm.
-        - Đảm bảo trả về đúng và đủ số lượng `max_results` bài báo hợp lệ trỏ trực tiếp đến trang nhà xuất bản (DOI).
+        - Đảm bảo trả về đúng và đủ số lượng `max_results` bài báo hợp lệ.
         """
         sources = list(dict.fromkeys(sources or _DEFAULT_SOURCES))
         cache_key = self._cache_key(query, year_start, year_end, max_results, sources)
@@ -338,6 +367,7 @@ class AcademicSearchService:
                 source_errors.append(e)
                 logger.warning(str(e))
 
+        # 3. Tìm kiếm từ OpenAlex nếu được chỉ định
         if "openalex" in sources:
             try:
                 openalex_results = await self._search_openalex(
@@ -352,12 +382,43 @@ class AcademicSearchService:
                 source_errors.append(e)
                 logger.warning(str(e))
 
+        # 4. Tìm kiếm từ Crossref nếu được chỉ định
+        if "crossref" in sources:
+            try:
+                crossref_results = await self._search_crossref(
+                    query,
+                    year_start=year_start,
+                    year_end=year_end,
+                    max_results=candidate_limit,
+                )
+                successful_sources += 1
+                results.extend(crossref_results)
+            except AcademicSearchSourceError as e:
+                source_errors.append(e)
+                logger.warning(str(e))
+
+        # 5. Tìm kiếm từ Europe PMC nếu được chỉ định
+        if "europe_pmc" in sources:
+            try:
+                epmc_results = await self._search_europe_pmc(
+                    query,
+                    year_start=year_start,
+                    year_end=year_end,
+                    max_results=candidate_limit,
+                )
+                successful_sources += 1
+                results.extend(epmc_results)
+            except AcademicSearchSourceError as e:
+                source_errors.append(e)
+                logger.warning(str(e))
+
         ranked, filtered = self._rank_candidate_pool(query, results, year_start, year_end)
         if ranked:
             ranked = ranked[:max_results]
             self._store_cached_results(cache_key, ranked)
             return ranked
 
+        # Nguồn dự phòng OpenAlex: Nếu các nguồn được chọn không trả về bài báo phù hợp nào
         if settings.ACADEMIC_SEARCH_OPENALEX_FALLBACK and "openalex" not in sources:
             try:
                 openalex_results = await self._search_openalex(
@@ -389,53 +450,10 @@ class AcademicSearchService:
                 status_code=status_code,
             )
 
-        # 3. Tự động tìm kiếm bổ sung từ Crossref nếu kết quả còn thiếu
-        if len(results) < max_results:
-            crossref_results = await self._search_crossref(
-                query,
-                year_start=year_start,
-                year_end=year_end,
-                max_results=max_results - len(results)
-            )
-            results.extend(crossref_results)
-
-        # 4. Tự động tìm kiếm bổ sung từ Europe PMC (y sinh, sức khỏe cộng đồng, chất gây nghiện, dược học) nếu còn thiếu
-        if len(results) < max_results:
-            epmc_results = await self._search_europe_pmc(
-                query,
-                year_start=year_start,
-                year_end=year_end,
-                max_results=max_results - len(results)
-            )
-            results.extend(epmc_results)
-
-        # Khử trùng lặp tiêu đề bài báo (De-duplicate)
-        deduped = self._deduplicate(results)
-
-        # Lọc kết quả theo năm xuất bản
-        if year_start or year_end:
-            filtered = []
-            for p in deduped:
-                y = p.get("year")
-                if y:
-                    if year_start and y < year_start:
-                        continue
-                    if year_end and y > year_end:
-                        continue
-                filtered.append(p)
-            deduped = filtered
-
-        # Xếp hạng theo độ khớp ngữ nghĩa
-        ranked = self._rank_by_query_match(query, deduped)
-        if ranked:
-            ranked = ranked[:max_results]
-            self._store_cached_results(cache_key, ranked)
-            return ranked
-
-        if deduped:
+        if filtered:
             logger.info(
                 "Discarded %d academic search result(s) because they did not match query '%s'.",
-                len(deduped),
+                len(filtered),
                 query,
             )
         else:
@@ -445,6 +463,7 @@ class AcademicSearchService:
                 ", ".join(sources),
             )
         return []
+
 
     def _build_arxiv_query(self, query: str) -> str:
         """Convert free-form keywords into an arXiv query that applies `all:` to each term."""
@@ -895,14 +914,16 @@ class AcademicSearchService:
         """Split text into comparable tokens while keeping Unicode search terms."""
         return re.findall(r"[\w]+", (text or "").lower(), flags=re.UNICODE)
 
+    # @trace: REQ-026
     def _query_terms(self, query: str) -> List[str]:
         """Build a compact set of meaningful query terms for relevance scoring."""
+        raw_tokens = self._tokenize(query)
         terms = [
             token
-            for token in self._tokenize(query)
-            if len(token) > 1 and token not in self._STOPWORDS
+            for token in raw_tokens
+            if len(token) > 1 and token not in self._STOPWORDS and token not in self._VIETNAMESE_STOPWORDS
         ]
-        return list(dict.fromkeys(terms))
+        return list(dict.fromkeys(terms)) or [t for t in raw_tokens if len(t) > 1]
 
     def _term_matches(self, term: str, corpus_terms: set[str]) -> bool:
         """Allow simple singular/plural matches without broad fuzzy matching."""

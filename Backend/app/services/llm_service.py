@@ -266,17 +266,23 @@ class LLMService:
                     "summary": f"Công trình trình bày những phát hiện học thuật có giá trị thực tiễn cao trong lĩnh vực nghiên cứu."
                 })
 
-        # 3. THẨM ĐỊNH CHẤT LƯỢNG (ReviewAgent)
-        elif "review" in prompt_lower and "criteria" in prompt_lower or "score" in prompt_lower:
+        # @trace: REQ-028
+        # 3. THẨM ĐỊNH CHẤT LƯỢNG (ReviewAgent Fallback khi LLM Offline)
+        elif "review" in prompt_lower and ("criteria" in prompt_lower or "score" in prompt_lower):
+            logger.warning("ReviewAgent executed in OFFLINE MOCK mode - reporting DRAFT / NEEDS_REVISION transparently.")
             return json.dumps({
-                "score": 94.0,
-                "status": "PASS",
+                "score": 68.0,
+                "status": "NEEDS_REVISION",
                 "issues": [
-                    {"type": "citation_coverage", "description": "Tỷ lệ phủ trích dẫn đạt chuẩn học thuật cao, các luận điểm đều có căn cứ vững chắc.", "severity": "low"}
+                    {
+                        "type": "llm_offline_fallback",
+                        "description": "Hệ thống đang hoạt động ở chế độ ngoại tuyến (LLM Offline / Quota Exceeded). Bản thảo cần được phản biện lại khi kết nối AI phục hồi.",
+                        "severity": "medium"
+                    }
                 ],
-                "feedback": "Báo cáo tổng quan được biên soạn chặt chẽ, bố cục 6 phần rõ ràng, các phân tích phương pháp và số liệu đối chiếu chuẩn xác.",
-                "hallucination_risks": [],
-                "citation_coverage": 0.96
+                "feedback": "Cảnh báo hệ thống: Mô hình ngôn ngữ AI chưa phản hồi. Báo cáo được giữ ở trạng thái DRAFT / NEEDS_REVISION để đảm bảo tính minh bạch học thuật.",
+                "hallucination_risks": ["Cần kiểm chứng trích dẫn thực tế với Gemini/OpenAI"],
+                "citation_coverage": 0.75
             })
 
         # 4. CHUYỂN NGỮ TIÊU ĐỀ & TÓM TẮT BÀI BÁO (SearchAgent Translation)
@@ -321,11 +327,12 @@ class LLMService:
         )
         return has_keyword_intent and has_search_context
 
+    # @trace: REQ-026
     def _mock_keyword_extraction(self, prompt: str) -> str:
         """Trích xuất từ khóa học thuật tiếng Anh phù hợp từ chủ đề người dùng nhập."""
         match = re.search(r"topic or question:\s*'([^']+)'", prompt, flags=re.IGNORECASE)
         topic = match.group(1) if match else prompt
-        return fallback_academic_keywords(topic, max_terms=10)
+        return fallback_academic_keywords(topic, max_terms=8)
 
     def _extract_prompt_field(self, prompt: str, labels: List[str]) -> str:
         """Extract a labeled field from a prompt for deterministic non-fabricating fallbacks."""

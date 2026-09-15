@@ -167,10 +167,10 @@ Respond in JSON:
             return self._fallback_search_query(topic)
         return cleaned
 
+    # @trace: REQ-026
     def _fallback_search_query(self, topic: str) -> str:
         """Build deterministic keywords from the user's topic when the LLM fallback is unavailable."""
-        return fallback_academic_keywords(topic, max_terms=10)
-
+        return fallback_academic_keywords(topic, max_terms=8)
     def _is_known_unrelated_fallback(self, topic: str, refined_query: str) -> bool:
         """Reject the legacy mock keyword response when it clearly does not match the topic."""
         legacy_mock = "transformer deep learning medical segmentation"

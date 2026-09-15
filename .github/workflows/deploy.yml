@@ -12,10 +12,14 @@ jobs:
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          DB_URL: ${{ secrets.DATABASE_URL }}
+          LLM_MODEL: ${{ secrets.DEFAULT_LLM_MODEL || 'gemini-2.5-flash' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DB_URL,LLM_MODEL
           script: |
             set -e
 
@@ -30,22 +34,23 @@ jobs:
             echo "Installing backend dependencies..."
             /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install -r Backend/requirements.txt
 
-            echo "Configuring Neon PostgreSQL & Default LLM Model..."
+            # @trace: REQ-027, REQ-029
+            echo "Configuring environment variables safely..."
             mkdir -p Backend
-            if [ -f "Backend/.env" ]; then
+            touch Backend/.env
+
+            # Cập nhật DATABASE_URL từ Secret nếu có, không làm lộ mật khẩu trong git
+            if [ -n "$DB_URL" ]; then
               if grep -q "^DATABASE_URL=" Backend/.env; then
-                sed -i 's|^DATABASE_URL=.*|DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require|' Backend/.env
+                sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$DB_URL|" Backend/.env
               else
-                echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' >> Backend/.env
+                echo "DATABASE_URL=$DB_URL" >> Backend/.env
               fi
-              if grep -q "^DEFAULT_LLM_MODEL=" Backend/.env; then
-                sed -i 's|^DEFAULT_LLM_MODEL=.*|DEFAULT_LLM_MODEL=gemini-3.7-flash|' Backend/.env
-              else
-                echo 'DEFAULT_LLM_MODEL=gemini-3.7-flash' >> Backend/.env
-              fi
-            else
-              echo 'DATABASE_URL=postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require' > Backend/.env
-              echo 'DEFAULT_LLM_MODEL=gemini-3.7-flash' >> Backend/.env
+            fi
+
+            # Tôn trọng cấu hình model mặc định hoặc lựa chọn người dùng (gemini-2.5-flash)
+            if ! grep -q "^DEFAULT_LLM_MODEL=" Backend/.env; then
+              echo "DEFAULT_LLM_MODEL=$LLM_MODEL" >> Backend/.env
             fi
 
             echo "Building frontend..."
@@ -57,9 +62,12 @@ jobs:
             echo "Restarting PaperFlow..."
             systemctl restart paperflow
 
-
-            echo "Checking service..."
+            echo "Checking service status..."
             sleep 3
             systemctl is-active --quiet paperflow
+
+            # @trace: REQ-030
+            echo "Running smoke tests on deployed backend..."
+            /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pytest Backend/tests/test_smoke_api.py -v
 
             echo "Deploy successful!"

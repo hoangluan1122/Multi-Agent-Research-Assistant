@@ -73,8 +73,9 @@ class Settings(BaseSettings):
                 return True
         return v
 
-    # Cấu hình Database (Mặc định kết nối Neon Serverless PostgreSQL trên Cloud)
-    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require"
+    # @trace: REQ-029
+    # Cấu hình Database (Đọc an toàn từ biến môi trường DATABASE_URL hoặc file .env)
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/paperflow"
 
     # Cấu hình Vector Database (Qdrant)
     QDRANT_HOST: str = "localhost"
@@ -84,12 +85,13 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = "paperflow_chunks"
     VECTOR_DIMENSION: int = 768  # Kích thước vector embedding chuẩn
 
+    # @trace: REQ-027
     # Cấu hình mô hình ngôn ngữ lớn (LLM Settings)
     LLM_PROVIDER: str = "gemini"  # "gemini", "openai", "mock"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    DEFAULT_LLM_MODEL: str = "gemini-3.7-flash"
+    DEFAULT_LLM_MODEL: str = "gemini-2.5-flash"
     TEMPERATURE: float = 0.2
 
     # Cấu hình tìm kiếm học thuật bên ngoài (OpenAlex, arXiv, Semantic Scholar)

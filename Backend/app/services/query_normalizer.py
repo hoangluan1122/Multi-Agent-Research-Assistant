@@ -12,9 +12,17 @@ _STOPWORDS = {
     "anh", "bao", "cac", "cho", "co", "cong", "cua", "cuu", "den", "doi",
     "duoc", "hay", "la", "mot", "nghien", "nhung", "noi", "phan", "qua",
     "tai", "tac", "the", "thi", "trong", "tu", "ve", "voi", "va",
+    "mo", "hinh", "dai", "dang", "day", "hoc", "sau", "may", "bai", "duoi", "tren", "giua"
 }
 
 _PHRASE_MAPPINGS = [
+    ("deep learning", ["deep", "learning"]),
+    ("mo hinh", ["model"]),
+    ("da dang", ["diversity"]),
+    ("toi uu hoa", ["optimization"]),
+    ("phan loai", ["classification"]),
+    ("phat hien", ["detection"]),
+    ("nhan dang", ["recognition"]),
     ("tuyen tien liet", ["prostate", "cancer", "prostate-specific", "antigen"]),
     ("tien liet tuyen", ["prostate", "cancer", "prostate-specific", "antigen"]),
     ("thuoc la", ["tobacco", "smoking", "nicotine", "adverse", "health", "effects"]),
@@ -61,6 +69,7 @@ def strip_accents(text: str) -> str:
     return ascii_text.replace("đ", "d").replace("Đ", "D")
 
 
+# @trace: REQ-026
 def fallback_academic_keywords(topic: str, max_terms: int = 8) -> str:
     normalized = strip_accents(topic).lower()
     normalized = re.sub(r"[^a-z0-9\s-]+", " ", normalized)
@@ -75,8 +84,9 @@ def fallback_academic_keywords(topic: str, max_terms: int = 8) -> str:
             mapped_words.update(phrase_words)
 
     for token in re.findall(r"[a-z0-9-]+", normalized):
-        if token in _STOPWORDS or token in mapped_words or len(token) <= 1:
+        if token in _STOPWORDS or token in mapped_words or len(token) <= 2:
             continue
+        # Chỉ nhận token nếu là từ tiếng Anh chuẩn
         terms.append(token)
 
     unique_terms = list(dict.fromkeys(terms))
