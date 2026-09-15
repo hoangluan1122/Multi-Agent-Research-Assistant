@@ -15,6 +15,8 @@ class PaperSearchRequest(BaseModel):
     year_end: Optional[int] = None
     max_results: Optional[int] = Field(10, ge=1, le=50, description="Số lượng kết quả tối đa")
     sources: Optional[List[str]] = Field(default=["openalex"], description="Nguồn tìm kiếm")
+    # @trace: REQ-036
+    clear_existing: Optional[bool] = Field(default=False, description="Xóa toàn bộ bài báo cũ của phiên trước khi tìm kiếm bài mới")
 
 class PaperCreate(BaseModel):
     """Schema dữ liệu tạo mới bài báo khi tải file PDF lên thủ công."""

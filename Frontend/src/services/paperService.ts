@@ -69,5 +69,18 @@ export const paperService = {
     const response = await apiClient.post<Paper[]>(`/api/v1/papers/session/${sessionId}/translate-all`);
     return response.data;
   },
+
+  // @trace: REQ-034
+  /** Xóa một bài báo khỏi phiên nghiên cứu */
+  async deletePaper(paperId: string): Promise<void> {
+    await apiClient.delete(`/api/v1/papers/${paperId}`);
+  },
+
+  // @trace: REQ-035
+  /** Xóa toàn bộ bài báo trong phiên nghiên cứu */
+  async clearSessionPapers(sessionId: string): Promise<{ message: string; deleted_count: number }> {
+    const response = await apiClient.delete<{ message: string; deleted_count: number }>(`/api/v1/papers/session/${sessionId}`);
+    return response.data;
+  },
 };
 

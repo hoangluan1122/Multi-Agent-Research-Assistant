@@ -15,6 +15,7 @@ import {
   Filter,
   Loader2,
   FileText,
+  Trash2,
 } from 'lucide-react';
 import type { Session, Paper } from '../../types';
 import { PaperCard } from './PaperCard';
@@ -31,7 +32,8 @@ interface PaperDiscoveryProps {
     maxResults: number,
     sources: string[],
     yearStart?: number,
-    yearEnd?: number
+    yearEnd?: number,
+    clearExisting?: boolean
   ) => Promise<void>;
   onUploadPaper: (file: File) => Promise<void>;
   onToggleSelectPaper: (paper: Paper) => Promise<void>;
@@ -39,6 +41,10 @@ interface PaperDiscoveryProps {
   onAnalyzePaper: (paperId: string) => Promise<void>;
   onTranslatePaper?: (paperId: string) => Promise<void>;
   onTranslateAllPapers?: () => Promise<void>;
+  // @trace: REQ-034
+  onDeletePaper?: (paperId: string) => Promise<void>;
+  // @trace: REQ-035
+  onClearPapers?: () => Promise<void>;
 }
 
 export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
@@ -51,10 +57,13 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
   onAnalyzePaper,
   onTranslatePaper,
   onTranslateAllPapers,
+  onDeletePaper,
+  onClearPapers,
 }) => {
   const { t } = useI18n();
   const [query, setQuery] = useState(session.topic);
   const [maxResults, setMaxResults] = useState(5);
+  const [clearExisting, setClearExisting] = useState(false);
   const [sources, setSources] = useState<string[]>(['openalex']);
   const [yearStart, setYearStart] = useState<string>('');
   const [yearEnd, setYearEnd] = useState<string>('');
@@ -83,7 +92,8 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
         maxResults,
         sources,
         yearStart ? parseInt(yearStart, 10) : undefined,
-        yearEnd ? parseInt(yearEnd, 10) : undefined
+        yearEnd ? parseInt(yearEnd, 10) : undefined,
+        clearExisting
       );
     } finally {
       setIsSearching(false);
@@ -228,6 +238,17 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
                 <option value={10}>10 {t.papersCountUnit}</option>
                 <option value={15}>15 {t.papersCountUnit}</option>
               </select>
+
+              {/* @trace: REQ-036 */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs text-gray-400 hover:text-gray-200 select-none ml-2">
+                <input
+                  type="checkbox"
+                  checked={clearExisting}
+                  onChange={(e) => setClearExisting(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded border-gray-700 bg-gray-800 text-indigo-500 focus:ring-indigo-500/30"
+                />
+                <span>Làm mới danh sách (xóa bài cũ)</span>
+              </label>
             </div>
           </div>
         </form>
@@ -281,6 +302,17 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
             >
               {t.deselectAllBtn}
             </button>
+            {/* @trace: REQ-035 */}
+            {onClearPapers && (
+              <button
+                onClick={onClearPapers}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-rose-100 border border-rose-800/50 transition-colors"
+                title="Xóa tất cả bài báo trong phiên"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa tất cả bài</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -307,6 +339,7 @@ export const PaperDiscovery: React.FC<PaperDiscoveryProps> = ({
               onToggleSelect={onToggleSelectPaper}
               onViewAnalysis={handleOpenAnalysis}
               onTranslate={onTranslatePaper}
+              onDelete={onDeletePaper}
             />
           ))}
         </div>

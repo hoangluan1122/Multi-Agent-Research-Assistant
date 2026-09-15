@@ -146,3 +146,100 @@ def test_gambling_search_discards_asthma_and_covid_unrelated_papers():
         assert "asthma" not in p["title"].lower()
         assert "covid" not in p["title"].lower()
         assert "bac" not in p["title"].lower()
+
+
+# @trace: REQ-034, REQ-035, REQ-036
+@pytest.mark.asyncio
+async def test_paper_delete_clear_and_search_clear_existing():
+    """
+    Kiểm định toàn diện REQ-034, REQ-035, REQ-036:
+    - REQ-034: Xóa bài báo đơn lẻ DELETE /api/v1/papers/{id} trả về 204.
+    - REQ-035: Xóa toàn bộ bài trong phiên DELETE /api/v1/papers/session/{session_id} trả về 200.
+    - REQ-036: Tìm kiếm với clear_existing=True xóa sạch bài cũ trước khi lưu batch mới.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.session import AsyncSessionLocal, init_db
+    from app.models.session import ResearchSession
+    from app.models.paper import Paper
+    import uuid
+
+    await init_db()
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        session_id = str(uuid.uuid4())
+        paper_id_1 = str(uuid.uuid4())
+        paper_id_2 = str(uuid.uuid4())
+
+        async with AsyncSessionLocal() as db:
+            s = ResearchSession(
+                id=session_id,
+                topic="Gambling Research Test",
+                research_question="Impacts on youth",
+                status="COMPLETED"
+            )
+            db.add(s)
+            p1 = Paper(
+                id=paper_id_1,
+                session_id=session_id,
+                title="Gambling Paper 1",
+                relevance_score=0.9
+            )
+            p2 = Paper(
+                id=paper_id_2,
+                session_id=session_id,
+                title="Gambling Paper 2",
+                relevance_score=0.85
+            )
+            db.add_all([p1, p2])
+            await db.commit()
+
+        # REQ-034: Xóa bài báo đơn lẻ
+        del_resp = await client.delete(f"/api/v1/papers/{paper_id_1}")
+        assert del_resp.status_code == 204
+
+        async with AsyncSessionLocal() as db:
+            res1 = await db.get(Paper, paper_id_1)
+            assert res1 is None
+            res2 = await db.get(Paper, paper_id_2)
+            assert res2 is not None
+
+        # REQ-035: Xóa toàn bộ bài trong phiên
+        clear_resp = await client.delete(f"/api/v1/papers/session/{session_id}")
+        assert clear_resp.status_code == 200
+        assert clear_resp.json()["deleted_count"] == 1
+
+        async with AsyncSessionLocal() as db:
+            res2_after = await db.get(Paper, paper_id_2)
+            assert res2_after is None
+
+        # REQ-036: Thêm lại 1 bài cũ rồi test search với clear_existing=True
+        paper_id_3 = str(uuid.uuid4())
+        async with AsyncSessionLocal() as db:
+            p3 = Paper(
+                id=paper_id_3,
+                session_id=session_id,
+                title="Old Gambling Paper To Be Cleared",
+                relevance_score=0.7
+            )
+            db.add(p3)
+            await db.commit()
+
+        search_payload = {
+            "session_id": session_id,
+            "query": "sports betting problem gambling",
+            "max_results": 2,
+            "clear_existing": True
+        }
+        search_resp = await client.post("/api/v1/papers/search", json=search_payload)
+        assert search_resp.status_code == 200
+
+        # Kiểm tra paper_id_3 đã bị xóa khỏi DB do clear_existing=True
+        async with AsyncSessionLocal() as db:
+            res3 = await db.get(Paper, paper_id_3)
+            assert res3 is None
+            s_del = await db.get(ResearchSession, session_id)
+            if s_del:
+                await db.delete(s_del)
+                await db.commit()
+

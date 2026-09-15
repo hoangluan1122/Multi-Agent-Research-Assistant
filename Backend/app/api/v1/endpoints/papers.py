@@ -58,6 +58,19 @@ async def search_academic_papers(
 
     verify_session_access(session, current_user)
 
+    # @trace: REQ-036
+    if payload.clear_existing:
+        old_stmt = select(Paper).where(Paper.session_id == payload.session_id)
+        old_res = await db.execute(old_stmt)
+        for old_paper in old_res.scalars().all():
+            if old_paper.pdf_path and os.path.exists(old_paper.pdf_path):
+                try:
+                    os.remove(old_paper.pdf_path)
+                except OSError:
+                    pass
+            await db.delete(old_paper)
+        await db.flush()
+
     try:
         search_result = await search_agent.run(
             db=db,
@@ -290,4 +303,74 @@ async def translate_all_session_papers(session_id: str, db: AsyncSession = Depen
     for p in papers:
         await db.refresh(p)
     return papers
+
+
+# @trace: REQ-035
+@router.delete("/session/{session_id}")
+async def clear_session_papers(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa toàn bộ bài báo trong một phiên nghiên cứu (Clear All Papers in Session).
+    """
+    stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
+
+    papers_stmt = select(Paper).where(Paper.session_id == session_id)
+    p_res = await db.execute(papers_stmt)
+    papers = p_res.scalars().all()
+
+    count = len(papers)
+    for paper in papers:
+        if paper.pdf_path and os.path.exists(paper.pdf_path):
+            try:
+                os.remove(paper.pdf_path)
+            except OSError:
+                pass
+        await db.delete(paper)
+
+    await db.commit()
+    return {"message": f"Đã xóa toàn bộ {count} bài báo trong phiên.", "deleted_count": count}
+
+
+# @trace: REQ-034
+@router.delete("/{paper_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_paper(
+    paper_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa một bài báo đơn lẻ khỏi phiên nghiên cứu.
+    """
+    stmt = (
+        select(Paper)
+        .where(Paper.id == paper_id)
+        .options(selectinload(Paper.session))
+    )
+    res = await db.execute(stmt)
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    if paper.session:
+        verify_session_access(paper.session, current_user)
+
+    if paper.pdf_path and os.path.exists(paper.pdf_path):
+        try:
+            os.remove(paper.pdf_path)
+        except OSError:
+            pass
+
+    await db.delete(paper)
+    await db.commit()
+    return None
+
 

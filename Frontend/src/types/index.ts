@@ -85,6 +85,8 @@ export interface PaperSearchRequest {
   year_end?: number;
   max_results?: number;
   sources?: string[];
+  // @trace: REQ-036
+  clear_existing?: boolean;
 }
 
 // ==========================================

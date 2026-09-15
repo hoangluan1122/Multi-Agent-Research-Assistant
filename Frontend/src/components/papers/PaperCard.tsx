@@ -15,6 +15,7 @@ import {
   Sparkles,
   Languages,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import type { Paper } from '../../types';
 import { Badge } from '../common/Badge';
@@ -27,6 +28,8 @@ interface PaperCardProps {
   onViewAnalysis: (paper: Paper) => void;
   onRunAnalysis?: (paper: Paper) => void;
   onTranslate?: (paperId: string) => Promise<void>;
+  // @trace: REQ-034
+  onDelete?: (paperId: string) => void;
 }
 
 export const PaperCard: React.FC<PaperCardProps> = ({
@@ -34,6 +37,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
   onToggleSelect,
   onViewAnalysis,
   onTranslate,
+  onDelete,
 }) => {
   const { t } = useI18n();
   const [isTranslating, setIsTranslating] = useState(false);
@@ -90,18 +94,33 @@ export const PaperCard: React.FC<PaperCardProps> = ({
             </Badge>
           </div>
 
-          {/* Select Checkbox */}
-          <button
-            onClick={() => onToggleSelect(paper)}
-            className="text-gray-400 hover:text-white transition-colors"
-            title={paper.is_selected ? t.deselectAllBtn : t.selectAllBtn}
-          >
-            {paper.is_selected ? (
-              <CheckSquare className="w-5 h-5 text-indigo-400" />
-            ) : (
-              <Square className="w-5 h-5 text-gray-600 hover:text-gray-400" />
+          {/* Action Buttons: Checkbox & Delete */}
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => onToggleSelect(paper)}
+              className="text-gray-400 hover:text-white transition-colors"
+              title={paper.is_selected ? t.deselectAllBtn : t.selectAllBtn}
+            >
+              {paper.is_selected ? (
+                <CheckSquare className="w-5 h-5 text-indigo-400" />
+              ) : (
+                <Square className="w-5 h-5 text-gray-600 hover:text-gray-400" />
+              )}
+            </button>
+            {/* @trace: REQ-034 */}
+            {onDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(paper.id);
+                }}
+                className="text-gray-500 hover:text-rose-400 transition-colors p-1 rounded-lg hover:bg-rose-500/10"
+                title="Xóa bài báo khỏi phiên"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Title */}
