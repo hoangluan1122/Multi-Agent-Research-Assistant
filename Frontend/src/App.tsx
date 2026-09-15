@@ -413,13 +413,15 @@ export function App() {
     }
   };
 
+  // @trace: REQ-036, REQ-037
   // Handler: Search Papers
   const handleSearchPapers = async (
     query: string,
     maxResults: number,
     sources: string[],
     yearStart?: number,
-    yearEnd?: number
+    yearEnd?: number,
+    clearExisting?: boolean
   ) => {
     if (!activeSession) return;
 
@@ -431,15 +433,55 @@ export function App() {
         sources,
         year_start: yearStart,
         year_end: yearEnd,
+        clear_existing: clearExisting,
       });
       setPapers((prev) => {
+        if (clearExisting) {
+          return results;
+        }
         const existingIds = new Set(prev.map((p) => p.id));
         const newOnes = results.filter((p) => !existingIds.has(p.id));
         return [...newOnes, ...prev];
       });
-      addToast('success', `Tìm thấy ${results.length} bài báo mới.`);
+      if (results.length > 0) {
+        if (clearExisting) {
+          addToast('success', `Đã làm mới danh sách: Tìm thấy đúng ${results.length} bài báo phù hợp.`);
+        } else {
+          const totalAfter = papers.length + results.filter((p) => !papers.some((x) => x.id === p.id)).length;
+          addToast('success', `Tìm thấy ${results.length} bài báo mới (Tổng trong phiên: ${totalAfter} bài).`);
+        }
+      } else {
+        addToast('info', 'Không tìm thấy bài báo phù hợp từ các nguồn đã chọn. Hãy thử từ khóa tiếng Anh ngắn hơn hoặc bật OpenAlex/Semantic Scholar.');
+      }
     } catch (err: any) {
       addToast('error', `Tìm kiếm bài báo thất bại: ${err.message}`);
+    }
+  };
+
+  // @trace: REQ-034
+  // Handler: Delete Single Paper
+  const handleDeletePaper = async (paperId: string) => {
+    if (!window.confirm('Bạn có chắc muốn xóa bài báo này khỏi phiên nghiên cứu?')) return;
+    try {
+      await paperService.deletePaper(paperId);
+      setPapers((prev) => prev.filter((p) => p.id !== paperId));
+      addToast('info', 'Đã xóa bài báo khỏi phiên.');
+    } catch (err: any) {
+      addToast('error', `Xóa bài báo thất bại: ${err.message}`);
+    }
+  };
+
+  // @trace: REQ-035
+  // Handler: Clear All Papers in Session
+  const handleClearSessionPapers = async () => {
+    if (!activeSession) return;
+    if (!window.confirm('Bạn có chắc muốn xóa TOÀN BỘ bài báo trong phiên này?')) return;
+    try {
+      const res = await paperService.clearSessionPapers(activeSession.id);
+      setPapers([]);
+      addToast('info', res.message || 'Đã dọn sạch tất cả bài báo trong phiên.');
+    } catch (err: any) {
+      addToast('error', `Xóa toàn bộ bài báo thất bại: ${err.message}`);
     }
   };
 
@@ -674,6 +716,8 @@ export function App() {
                     onAnalyzePaper={handleAnalyzePaper}
                     onTranslatePaper={handleTranslatePaper}
                     onTranslateAllPapers={handleTranslateAllPapers}
+                    onDeletePaper={handleDeletePaper}
+                    onClearPapers={handleClearSessionPapers}
                   />
                 )}
 
@@ -737,7 +781,7 @@ export function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         config={config}
         onSave={handleSaveConfig}
-        onTestLlm={() => configService.testLlm()}
+        onTestLlm={(payload) => configService.testLlm(payload)}
       />
 
       <AuthModal

@@ -85,6 +85,8 @@ export interface PaperSearchRequest {
   year_end?: number;
   max_results?: number;
   sources?: string[];
+  // @trace: REQ-036
+  clear_existing?: boolean;
 }
 
 // ==========================================
@@ -177,6 +179,8 @@ export interface SystemConfig {
   default_model: string;
   has_gemini_key: boolean;
   has_openai_key: boolean;
+  has_semantic_scholar_key: boolean;
+  has_openalex_key: boolean;
   qdrant_host: string;
   qdrant_use_memory: boolean;
   max_search_papers: number;
@@ -190,9 +194,20 @@ export interface SystemConfigUpdate {
   gemini_api_key?: string;
   openai_api_key?: string;
   openai_base_url?: string;
+  semantic_scholar_api_key?: string;
+  openalex_api_key?: string;
   max_search_papers?: number;
   max_review_retries?: number;
   use_system_default?: boolean;
 }
+
+// @trace: REQ-042
+export interface TestLlmRequest {
+  llm_provider?: string;
+  default_model?: string;
+  api_key?: string;
+  base_url?: string;
+}
+
 
 

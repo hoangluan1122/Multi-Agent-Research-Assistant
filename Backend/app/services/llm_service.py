@@ -107,7 +107,8 @@ class LLMService:
         prompt: str,
         system_instruction: Optional[str] = None,
         temperature: float = 0.2,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        allow_mock: bool = True,
     ) -> str:
         """
         Sinh nội dung từ provider đã được cấu hình.
@@ -163,6 +164,8 @@ class LLMService:
 
         # 3. Mock chỉ dành cho demo offline do người dùng chủ động cấu hình.
         if self.provider == "mock":
+            if not allow_mock:
+                raise RuntimeError("Chế độ mock không được phép cho thao tác này.")
             logger.warning("Using mock LLM output because LLM_PROVIDER=mock.")
             return self._mock_generation(prompt, system_instruction)
 
@@ -172,7 +175,9 @@ class LLMService:
         self,
         prompt: str,
         system_instruction: Optional[str] = None,
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        model: Optional[str] = None,
+        allow_mock: bool = True,
     ) -> Dict[str, Any]:
         """
         Sinh kết quả có cấu trúc JSON từ LLM:
@@ -181,7 +186,13 @@ class LLMService:
         - Parse kết quả sang Python Dictionary.
         """
         sys_prompt = (system_instruction or "") + "\n\nCRITICAL: Respond ONLY with valid JSON. No markdown formatting, no backticks, no extra text."
-        raw_text = await self.generate_text(prompt, system_instruction=sys_prompt, temperature=temperature)
+        raw_text = await self.generate_text(
+            prompt,
+            system_instruction=sys_prompt,
+            temperature=temperature,
+            model=model,
+            allow_mock=allow_mock,
+        )
         
         # Loại bỏ các thẻ code block nếu LLM bao bọc chuỗi JSON
         cleaned = raw_text.strip()

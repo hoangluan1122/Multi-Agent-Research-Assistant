@@ -1,8 +1,8 @@
-// @trace: REQ-011, REQ-012
+// @trace: REQ-011, REQ-012, REQ-041, REQ-042, REQ-043
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
-import type { SystemConfig, SystemConfigUpdate } from '../../types';
-import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck } from 'lucide-react';
+import type { SystemConfig, SystemConfigUpdate, TestLlmRequest } from '../../types';
+import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
 
@@ -11,7 +11,7 @@ interface SettingsModalProps {
   onClose: () => void;
   config: SystemConfig | null;
   onSave: (update: SystemConfigUpdate) => Promise<void>;
-  onTestLlm: () => Promise<{ status: string; message: string; response?: string }>;
+  onTestLlm: (payload?: TestLlmRequest) => Promise<{ status: string; message: string; response?: string }>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -26,10 +26,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // @trace: REQ-012: Chế độ API ('system' = API Web có sẵn, 'custom' = API cá nhân)
   const [apiMode, setApiMode] = useState<'system' | 'custom'>('system');
   const [provider, setProvider] = useState<string>('gemini');
-  const [model, setModel] = useState<string>('gemini-3.7-flash');
+  const [model, setModel] = useState<string>('gemini-2.0-flash');
   const [geminiKey, setGeminiKey] = useState<string>('');
+  const [showGeminiKey, setShowGeminiKey] = useState<boolean>(false);
   const [openaiKey, setOpenaiKey] = useState<string>('');
+  const [showOpenaiKey, setShowOpenaiKey] = useState<boolean>(false);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>('');
+  const [semanticScholarKey, setSemanticScholarKey] = useState<string>('');
+  const [openAlexKey, setOpenAlexKey] = useState<string>('');
   const [maxSearch, setMaxSearch] = useState<number>(10);
   const [maxRetries, setMaxRetries] = useState<number>(2);
 
@@ -48,17 +52,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
 
       setProvider(config.llm_provider || 'gemini');
-      setModel(config.default_model || 'gemini-3.7-flash');
+      setModel(config.default_model || 'gemini-2.0-flash');
       setMaxSearch(config.max_search_papers || 10);
       setMaxRetries(config.max_review_retries || 2);
     }
   }, [config]);
 
+  // @trace: REQ-041, REQ-042, REQ-043: Kiểm tra kết nối động theo thông số đang điền trên form
   const handleTestConnection = async () => {
+    const isCustom = apiMode === 'custom';
+    if (isCustom) {
+      const currentKey = provider === 'gemini' ? geminiKey.trim() : openaiKey.trim();
+      if (!currentKey) {
+        setTestResult({
+          status: 'error',
+          message: provider === 'gemini'
+            ? 'Vui lòng dán khóa Gemini API Key của bạn (bắt đầu bằng AQ. hoặc AIza) vào ô phía trên trước khi kiểm tra.'
+            : `Vui lòng nhập khóa API Key (${provider.toUpperCase()}) vào ô phía trên trước khi kiểm tra.`,
+        });
+        return;
+      }
+    }
+
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await onTestLlm();
+      const keyToUse = isCustom
+        ? (provider === 'gemini' ? geminiKey.trim() : openaiKey.trim())
+        : undefined;
+      const baseUrlToUse = (provider === 'groq' || provider === 'openrouter')
+        ? openaiBaseUrl.trim() || undefined
+        : undefined;
+
+      const payload: TestLlmRequest = {
+        llm_provider: provider,
+        default_model: model,
+        api_key: keyToUse || undefined,
+        base_url: baseUrlToUse,
+      };
+
+      const res = await onTestLlm(payload);
       setTestResult(res);
     } catch (err: any) {
       setTestResult({
@@ -81,6 +114,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           use_system_default: true,
           llm_provider: provider,
           default_model: model,
+          semantic_scholar_api_key: semanticScholarKey.trim() || undefined,
+          openalex_api_key: openAlexKey.trim() || undefined,
           max_search_papers: Number(maxSearch),
           max_review_retries: Number(maxRetries),
         });
@@ -94,6 +129,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           gemini_api_key: provider === 'gemini' ? (geminiKey.trim() || undefined) : undefined,
           openai_api_key: provider !== 'gemini' ? (openaiKey.trim() || undefined) : undefined,
           openai_base_url: (provider === 'groq' || provider === 'openrouter') ? (openaiBaseUrl.trim() || undefined) : undefined,
+          semantic_scholar_api_key: semanticScholarKey.trim() || undefined,
+          openalex_api_key: openAlexKey.trim() || undefined,
           max_search_papers: Number(maxSearch),
           max_review_retries: Number(maxRetries),
         });
@@ -156,7 +193,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => {
                 setApiMode('system');
                 setProvider('gemini');
-                setModel('gemini-3.7-flash');
+                setModel('gemini-2.0-flash');
               }}
               className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                 apiMode === 'system'
@@ -223,9 +260,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Badge variant="success">Hệ thống kích hoạt sẵn</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* @trace: REQ-038 */}
               {[
-                { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', tag: 'Mặc định - Thông minh & Mới' },
-                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Bản ổn định - Cực nhanh' },
+                { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tag: 'Mặc định - Mới nhất & Thông minh' },
+                { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', tag: 'Bản ổn định - Cực nhanh' },
                 { id: 'gpt-4o-mini', label: 'GPT-4o Mini', tag: 'OpenAI Fallback' },
               ].map((m) => (
 
@@ -269,8 +307,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     key={p.id}
                     onClick={() => {
                       setProvider(p.id);
-                      if (p.id === 'gemini') setModel('gemini-2.5-flash');
-                      if (p.id === 'openai') setModel('gpt-4o-mini');
+                      if (p.id === 'gemini') {
+                        setModel('gemini-2.0-flash');
+                        if (!geminiKey && (openaiKey.startsWith('AQ.') || openaiKey.startsWith('AIza'))) {
+                          setGeminiKey(openaiKey);
+                        }
+                      }
+                      if (p.id === 'openai') {
+                        setModel('gpt-4o-mini');
+                        if (!openaiKey && geminiKey.startsWith('sk-')) {
+                          setOpenaiKey(geminiKey);
+                        }
+                      }
                       if (p.id === 'groq') setModel('llama-3.3-70b-versatile');
                       if (p.id === 'openrouter') setModel('deepseek/deepseek-chat');
                     }}
@@ -295,30 +343,102 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="Ví dụ: gemini-2.5-flash, gpt-4o, llama-3.3-70b-versatile"
+                placeholder="Ví dụ: gemini-2.0-flash, gemini-1.5-flash, gpt-4o, llama-3.3-70b-versatile"
                 className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
               />
+              {provider === 'gemini' && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-[11px] text-gray-400">Chọn nhanh mô hình:</span>
+                  <button
+                    type="button"
+                    onClick={() => setModel('gemini-2.0-flash')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                      model === 'gemini-2.0-flash'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    ⚡ gemini-2.0-flash (Khuyên dùng)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModel('gemini-1.5-flash')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                      model === 'gemini-1.5-flash'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    gemini-1.5-flash
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* API Keys */}
             <div className="space-y-3 pt-1">
               {provider === 'gemini' ? (
-                <div>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-gray-300 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
                     </label>
-                    {config?.has_gemini_key && (
-                      <Badge variant="success">{t.keyConfiguredEnv}</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium"
+                      >
+                        Lấy API Key miễn phí ↗
+                      </a>
+                      {config?.has_gemini_key && (
+                        <Badge variant="success">{t.keyConfiguredEnv}</Badge>
+                      )}
+                    </div>
                   </div>
-                  <input
-                    type="password"
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder={t.geminiKeyPlaceholder}
-                    className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showGeminiKey ? "text" : "password"}
+                      value={geminiKey}
+                      onChange={(e) => setGeminiKey(e.target.value)}
+                      placeholder={t.geminiKeyPlaceholder}
+                      autoComplete="new-password"
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      className="w-full bg-gray-800/80 text-gray-100 pl-3.5 pr-10 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiKey(!showGeminiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1 transition-colors"
+                      title={showGeminiKey ? "Ẩn khóa" : "Hiện khóa"}
+                    >
+                      {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {geminiKey.trim().startsWith('sk-') ? (
+                    <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
+                      <span>⚠️ Khóa này có định dạng của OpenAI (tiền tố sk-). Nếu bạn muốn dùng OpenAI, hãy bấm chọn tab <b>OpenAI</b> ở trên.</span>
+                    </p>
+                  ) : (
+                    <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-[11px] text-gray-300 space-y-1.5">
+                      <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                        <span>💡 Hướng dẫn lấy Key Google Gemini hoạt động 100%:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1 text-gray-300 leading-relaxed text-[11px]">
+                        <li>
+                          Mở trang: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 underline font-semibold">Google AI Studio (aistudio.google.com)</a>
+                        </li>
+                        <li>
+                          Bấm nút <b>&quot;+ Create API key&quot;</b> và chọn <b>&quot;Create API key in new project&quot;</b> <span className="text-amber-300">(bắt buộc chọn tạo trong project mới để tự động kích hoạt API)</span>.
+                        </li>
+                        <li>
+                          Sao chép toàn bộ chuỗi khóa (bắt đầu bằng <code>AQ.</code> hoặc <code>AIza</code>) và dán vào ô trên.
+                        </li>
+                      </ol>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -331,13 +451,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <Badge variant="success">{t.keyConfigured}</Badge>
                       )}
                     </div>
-                    <input
-                      type="password"
-                      value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
-                      placeholder={t.apiKeyPlaceholder}
-                      className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showOpenaiKey ? "text" : "password"}
+                        value={openaiKey}
+                        onChange={(e) => setOpenaiKey(e.target.value)}
+                        placeholder={t.apiKeyPlaceholder}
+                        autoComplete="new-password"
+                        data-1p-ignore="true"
+                        data-lpignore="true"
+                        className="w-full bg-gray-800/80 text-gray-100 pl-3.5 pr-10 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1 transition-colors"
+                        title={showOpenaiKey ? "Ẩn khóa" : "Hiện khóa"}
+                      >
+                        {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {(openaiKey.trim().startsWith('AQ.') || openaiKey.trim().startsWith('AIza')) && (
+                      <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
+                        <span>⚠️ Khóa này là của Google Gemini (bắt đầu bằng AQ./AIza). Vui lòng bấm chọn tab <b>Google Gemini</b> ở trên để sử dụng.</span>
+                      </p>
+                    )}
                   </div>
 
                   {(provider === 'groq' || provider === 'openrouter') && (
@@ -363,6 +501,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
         )}
+
+        <div className="space-y-2 p-3.5 rounded-xl bg-gray-900/60 border border-gray-700/60">
+          <div className="flex items-center justify-between gap-2">
+            <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-indigo-400" /> Semantic Scholar API Key
+            </label>
+            {config?.has_semantic_scholar_key && (
+              <Badge variant="success">{t.keyConfigured}</Badge>
+            )}
+          </div>
+          <input
+            type="password"
+            value={semanticScholarKey}
+            onChange={(e) => setSemanticScholarKey(e.target.value)}
+            placeholder="Optional, helps avoid Semantic Scholar 429 rate limits"
+            className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+          />
+        </div>
+
+        <div className="space-y-2 p-3.5 rounded-xl bg-gray-900/60 border border-gray-700/60">
+          <div className="flex items-center justify-between gap-2">
+            <label className="font-semibold text-gray-300 flex items-center gap-1.5">
+              <Key className="w-3.5 h-3.5 text-indigo-400" /> OpenAlex API Key
+            </label>
+            {config?.has_openalex_key && (
+              <Badge variant="success">{t.keyConfigured}</Badge>
+            )}
+          </div>
+          <input
+            type="password"
+            value={openAlexKey}
+            onChange={(e) => setOpenAlexKey(e.target.value)}
+            placeholder="Optional OpenAlex API key"
+            className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
+          />
+        </div>
 
         {/* Vector DB Status */}
         <div className="p-3 rounded-xl bg-gray-800/40 border border-gray-700/50 flex items-center justify-between">
@@ -412,6 +586,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 )}
                 <span>{testResult.message}</span>
               </div>
+              {testResult.status === 'error' && testResult.message.includes('Google Gemini') && provider !== 'gemini' && (
+                <div className="mt-2 pt-2 border-t border-rose-500/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProvider('gemini');
+                      setModel('gemini-2.0-flash');
+                      if (openaiKey.startsWith('AQ.') || openaiKey.startsWith('AIza')) {
+                        setGeminiKey(openaiKey);
+                      }
+                      setTestResult(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold transition-all shadow-md"
+                  >
+                    <span>👉 Bấm vào đây để tự động chọn Google Gemini & chuyển khóa</span>
+                  </button>
+                </div>
+              )}
               {testResult.response && (
                 <p className="mt-1 text-[11px] font-mono text-gray-300">
                   {t.aiResponseLabel} "{testResult.response}"

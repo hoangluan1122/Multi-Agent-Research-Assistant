@@ -1,6 +1,6 @@
 """
 Agent Tìm kiếm tài liệu học thuật (SearchAgent - UC002).
-Chịu trách nhiệm tối ưu hóa từ khóa học thuật tiếng Anh qua LLM, gọi ADK Search Tool từ ArXiv/Semantic Scholar và lưu trữ danh sách bài báo vào cơ sở dữ liệu.
+Chịu trách nhiệm tối ưu hóa từ khóa học thuật tiếng Anh qua LLM, gọi ADK Search Tool từ OpenAlex/arXiv/Semantic Scholar và lưu trữ danh sách bài báo vào cơ sở dữ liệu.
 """
 
 import logging
@@ -12,6 +12,7 @@ from .adk_tools import search_academic_papers
 from ..models.paper import Paper
 from ..models.session import ResearchSession
 from ..services.llm_service import llm_service
+from ..services.query_normalizer import fallback_academic_keywords
 
 logger = logging.getLogger("paperflow.search_agent")
 
@@ -20,7 +21,7 @@ class SearchAgent(BaseAgent):
     SearchAgent: Kế thừa BaseAgent, tích hợp công cụ search_academic_papers:
     - Tiếp nhận chủ đề/câu hỏi nghiên cứu.
     - Dùng LLM tối ưu câu truy vấn thành các thuật ngữ chuyên ngành tiếng Anh chuẩn.
-    - Tìm kiếm từ các nguồn ArXiv, Semantic Scholar.
+    - Tìm kiếm từ các nguồn OpenAlex, arXiv, Semantic Scholar.
     - Lưu metadata các bài báo vào bảng `papers`.
     """
     def __init__(self):
@@ -29,7 +30,7 @@ class SearchAgent(BaseAgent):
             description="Tìm kiếm, lọc và xếp hạng các tài liệu học thuật theo chủ đề nghiên cứu (UC002).",
             instruction="""Bạn là trợ lý nghiên cứu khoa học chuyên sâu phụ trách tìm kiếm tài liệu.
             Nhiệm vụ: Phân tích chủ đề nghiên cứu, tối ưu hóa các từ khóa học thuật tiếng Anh,
-            truy vấn bài báo từ các kho lưu trữ (ArXiv, Semantic Scholar) và xếp hạng mức độ liên quan.""",
+            truy vấn bài báo từ các kho lưu trữ (OpenAlex, arXiv, Semantic Scholar) và xếp hạng mức độ liên quan.""",
             tools=[search_academic_papers]
         )
 
@@ -75,6 +76,7 @@ class SearchAgent(BaseAgent):
                 year_start = year_start or params.get("year_start")
                 year_end = year_end or params.get("year_end")
                 max_papers = max_papers or params.get("max_papers", 10)
+                sources = sources or params.get("sources")
 
             # 2. Tối ưu hóa từ khóa tìm kiếm học thuật bằng LLM
             refined_query = await self._optimize_search_query(query)
@@ -153,10 +155,31 @@ Respond in JSON:
 
     async def _optimize_search_query(self, topic: str) -> str:
         """Sử dụng LLM trích xuất 3-5 từ khóa học thuật tiếng Anh cô đọng nhất từ chủ đề người dùng nhập."""
-        prompt = f"Given this research topic or question: '{topic}', extract 3-5 concise academic search keywords (English) for searching academic papers. Return ONLY the search terms separated by space."
+        prompt = (
+            f"Given this research topic or question: '{topic}', translate non-English text "
+            "to English and extract 3-7 concise, domain-specific academic search keywords "
+            "or short phrases. Preserve the core population, method, domain, and outcome. "
+            "Avoid broad generic words. Return ONLY the search terms separated by spaces."
+        )
         result = await llm_service.generate_text(prompt, temperature=0.1)
         cleaned = result.strip().replace('"', '').replace('\n', ' ')
-        return cleaned if cleaned else topic
+        if not cleaned or self._is_known_unrelated_fallback(topic, cleaned):
+            return self._fallback_search_query(topic)
+        return cleaned
+
+    # @trace: REQ-026
+    def _fallback_search_query(self, topic: str) -> str:
+        """Build deterministic keywords from the user's topic when the LLM fallback is unavailable."""
+        return fallback_academic_keywords(topic, max_terms=8)
+    def _is_known_unrelated_fallback(self, topic: str, refined_query: str) -> bool:
+        """Reject the legacy mock keyword response when it clearly does not match the topic."""
+        legacy_mock = "transformer deep learning medical segmentation"
+        if refined_query.strip().lower() != legacy_mock:
+            return False
+
+        topic_terms = set(self._fallback_search_query(topic).split())
+        refined_terms = set(refined_query.lower().split())
+        return topic_terms.isdisjoint(refined_terms)
 
 # Khởi tạo singleton instance cho SearchAgent
 search_agent = SearchAgent()

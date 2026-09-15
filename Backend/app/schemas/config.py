@@ -16,6 +16,8 @@ class SystemConfigResponse(BaseModel):
     default_model: str
     has_gemini_key: bool
     has_openai_key: bool
+    has_semantic_scholar_key: bool
+    has_openalex_key: bool
     qdrant_host: str
     qdrant_use_memory: bool
     max_search_papers: int
@@ -30,7 +32,17 @@ class SystemConfigUpdate(BaseModel):
     gemini_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     openai_base_url: Optional[str] = None
+    semantic_scholar_api_key: Optional[str] = None
+    openalex_api_key: Optional[str] = None
     max_search_papers: Optional[int] = None
     max_review_retries: Optional[int] = None
     use_system_default: Optional[bool] = None
 
+
+# @trace: REQ-042
+class TestLlmRequest(BaseModel):
+    """Schema dữ liệu yêu cầu kiểm tra kết nối LLM động theo form cấu hình hiện tại (in-flight)."""
+    llm_provider: Optional[str] = None
+    default_model: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None

@@ -84,6 +84,24 @@ class ResearchWorkflowEngine:
                     )
                     await self._notify(session_id, "RUNNING", "SEARCH_COMPLETED", 30, f"Đã tìm thấy và lọc {search_res['total_found']} bài báo liên quan.", "SearchAgent")
 
+                # @trace: REQ-024
+                # Circuit Breaker: Kiểm tra danh sách bài báo trong cơ sở dữ liệu
+                # Nếu không có bài báo nào, lập tức dừng workflow và báo FAILED minh bạch
+                check_stmt = select(func.count(Paper.id)).where(Paper.session_id == session_id)
+                total_papers_in_db = (await db.execute(check_stmt)).scalar() or 0
+                if total_papers_in_db == 0:
+                    error_msg = (
+                        "Không tìm thấy tài liệu khoa học nào phù hợp với chủ đề nghiên cứu. "
+                        "Vui lòng mở rộng từ khóa tìm kiếm hoặc tải lên file PDF bài báo."
+                    )
+                    logger.warning(f"Workflow stopped for session {session_id}: 0 papers found.")
+                    session.status = "FAILED"
+                    session.current_step = "SEARCH_NO_PAPERS"
+                    session.error_message = error_msg
+                    await db.commit()
+                    await self._notify(session_id, "FAILED", "SEARCH_NO_PAPERS", 30, error_msg, "SearchAgent")
+                    return
+
                 # =========================================================================
                 # BƯỚC 2: Reading Agent (Đọc tài liệu, trích xuất cấu trúc & Vector RAG - UC004, UC005)
                 # =========================================================================
@@ -93,6 +111,28 @@ class ResearchWorkflowEngine:
                     session_id=session_id
                 )
                 await self._notify(session_id, "RUNNING", "READING_COMPLETED", 60, f"Đã bóc tách thành công {reading_res['analyzed_count']} bài báo vào cơ sở tri thức.", "ReadingAgent")
+
+                # @trace: REQ-024
+                # Circuit Breaker: Kiểm tra xem có ít nhất 1 bài báo được đọc / bóc tách thành công không
+                analyzed_count = reading_res.get("analyzed_count", 0)
+                if analyzed_count == 0:
+                    check_analysis = select(func.count(Paper.id)).where(
+                        Paper.session_id == session_id,
+                        Paper.ingestion_status == "completed"
+                    )
+                    total_analyzed = (await db.execute(check_analysis)).scalar() or 0
+                    if total_analyzed == 0:
+                        error_msg = (
+                            "Không thể bóc tách cấu trúc từ các bài báo đã chọn. "
+                            "Vui lòng kiểm tra lại tài liệu hoặc tải lên file PDF hợp lệ."
+                        )
+                        logger.warning(f"Workflow stopped for session {session_id}: 0 papers analyzed.")
+                        session.status = "FAILED"
+                        session.current_step = "READING_FAILED"
+                        session.error_message = error_msg
+                        await db.commit()
+                        await self._notify(session_id, "FAILED", "READING_FAILED", 60, error_msg, "ReadingAgent")
+                        return
 
                 # =========================================================================
                 # BƯỚC 3: Summarization Agent (Tổng hợp & Tạo bảng so sánh đối chiếu - UC006, UC007)

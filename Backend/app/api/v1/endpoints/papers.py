@@ -5,6 +5,7 @@ Hỗ trợ tìm kiếm học thuật (ArXiv/Semantic Scholar), tải lên tài l
 
 import os
 import shutil
+import asyncio
 from typing import List, Optional
 try:
     import magic
@@ -23,6 +24,7 @@ from app.agents.search_agent import search_agent
 from app.agents.reading_agent import reading_agent
 from app.models.user import User
 from app.api.deps import get_current_user_optional, verify_session_access
+from app.services.academic_search import AcademicSearchError
 from app.schemas.paper import (
     PaperSearchRequest,
     PaperResponse,
@@ -30,7 +32,7 @@ from app.schemas.paper import (
     PaperSelectionUpdate,
 )
 
-from app.services.llm_service import llm_service
+from app.services.paper_translation import translate_content
 
 router = APIRouter(prefix="/papers", tags=["Papers (UC002, UC003, UC004)"])
 
@@ -56,15 +58,31 @@ async def search_academic_papers(
 
     verify_session_access(session, current_user)
 
-    search_result = await search_agent.run(
-        db=db,
-        session_id=payload.session_id,
-        query=payload.query,
-        year_start=payload.year_start,
-        year_end=payload.year_end,
-        max_papers=payload.max_results or 10,
-        sources=payload.sources
-    )
+    # @trace: REQ-036
+    if payload.clear_existing:
+        old_stmt = select(Paper).where(Paper.session_id == payload.session_id)
+        old_res = await db.execute(old_stmt)
+        for old_paper in old_res.scalars().all():
+            if old_paper.pdf_path and os.path.exists(old_paper.pdf_path):
+                try:
+                    os.remove(old_paper.pdf_path)
+                except OSError:
+                    pass
+            await db.delete(old_paper)
+        await db.flush()
+
+    try:
+        search_result = await search_agent.run(
+            db=db,
+            session_id=payload.session_id,
+            query=payload.query,
+            year_start=payload.year_start,
+            year_end=payload.year_end,
+            max_papers=payload.max_results or 10,
+            sources=payload.sources
+        )
+    except AcademicSearchError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
     paper_ids = [item["id"] for item in search_result.get("papers", []) if item.get("id")]
     if not paper_ids:
@@ -224,28 +242,20 @@ async def translate_single_paper(paper_id: str, db: AsyncSession = Depends(get_d
     if not paper:
         raise HTTPException(status_code=404, detail="Paper not found")
 
-    prompt = f"""You are a professional scientific translator and researcher.
-Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
-
-Paper Title (EN): {paper.title}
-Abstract (EN): {paper.abstract or 'No abstract provided'}
-
-Respond strictly in JSON format:
-{{
-  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
-  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
-}}
-"""
     try:
-        translated = await llm_service.generate_json(prompt)
+        translated = await translate_content(paper.title, paper.abstract)
         if translated.get("title_vi"):
             paper.title = translated["title_vi"]
         if translated.get("abstract_vi"):
             paper.abstract = translated["abstract_vi"]
         await db.commit()
         await db.refresh(paper)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+    except asyncio.TimeoutError:
+        await db.rollback()
+        raise HTTPException(status_code=504, detail="Dịch quá thời gian chờ. Vui lòng thử lại.")
+    except (RuntimeError, ValueError) as e:
+        await db.rollback()
+        raise HTTPException(status_code=502, detail=str(e))
 
     return paper
 
@@ -264,30 +274,103 @@ async def translate_all_session_papers(session_id: str, db: AsyncSession = Depen
     if not papers:
         return []
 
-    for paper in papers:
-        prompt = f"""You are a professional scientific translator and researcher.
-Translate the following academic paper title and abstract into natural, accurate, and high-quality Vietnamese (Tiếng Việt).
+    semaphore = asyncio.Semaphore(3)
 
-Paper Title (EN): {paper.title}
-Abstract (EN): {paper.abstract or 'No abstract provided'}
+    async def translate_one(paper):
+        async with semaphore:
+            return await translate_content(paper.title, paper.abstract)
 
-Respond strictly in JSON format:
-{{
-  "title_vi": "Tiêu đề tiếng Việt chuẩn xác",
-  "abstract_vi": "Tóm tắt abstract tiếng Việt trôi chảy, chuẩn thuật ngữ chuyên ngành"
-}}
-"""
-        try:
-            translated = await llm_service.generate_json(prompt)
-            if translated.get("title_vi"):
-                paper.title = translated["title_vi"]
-            if translated.get("abstract_vi"):
-                paper.abstract = translated["abstract_vi"]
-        except Exception:
-            continue
+    # Complete every translation before mutating any rows: no false partial success.
+    tasks = [asyncio.create_task(translate_one(paper)) for paper in papers]
+    try:
+        translations = await asyncio.wait_for(asyncio.gather(*tasks), timeout=50)
+    except Exception as exc:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await db.rollback()
+        detail = ("Dịch quá thời gian chờ. Hãy dịch từng bài hoặc thử lại."
+                  if isinstance(exc, asyncio.TimeoutError)
+                  else "Không thể dịch toàn bộ bài báo. Chưa lưu thay đổi; vui lòng thử dịch từng bài.")
+        raise HTTPException(status_code=502, detail=detail) from exc
+
+    for paper, translated in zip(papers, translations):
+        paper.title = translated["title_vi"]
+        if paper.abstract:
+            paper.abstract = translated["abstract_vi"]
 
     await db.commit()
     for p in papers:
         await db.refresh(p)
     return papers
+
+
+# @trace: REQ-035
+@router.delete("/session/{session_id}")
+async def clear_session_papers(
+    session_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa toàn bộ bài báo trong một phiên nghiên cứu (Clear All Papers in Session).
+    """
+    stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+    res = await db.execute(stmt)
+    session = res.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Research session not found")
+
+    verify_session_access(session, current_user)
+
+    papers_stmt = select(Paper).where(Paper.session_id == session_id)
+    p_res = await db.execute(papers_stmt)
+    papers = p_res.scalars().all()
+
+    count = len(papers)
+    for paper in papers:
+        if paper.pdf_path and os.path.exists(paper.pdf_path):
+            try:
+                os.remove(paper.pdf_path)
+            except OSError:
+                pass
+        await db.delete(paper)
+
+    await db.commit()
+    return {"message": f"Đã xóa toàn bộ {count} bài báo trong phiên.", "deleted_count": count}
+
+
+# @trace: REQ-034
+@router.delete("/{paper_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_paper(
+    paper_id: str,
+    current_user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Xóa một bài báo đơn lẻ khỏi phiên nghiên cứu.
+    """
+    stmt = (
+        select(Paper)
+        .where(Paper.id == paper_id)
+        .options(selectinload(Paper.session))
+    )
+    res = await db.execute(stmt)
+    paper = res.scalar_one_or_none()
+    if not paper:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    if paper.session:
+        verify_session_access(paper.session, current_user)
+
+    if paper.pdf_path and os.path.exists(paper.pdf_path):
+        try:
+            os.remove(paper.pdf_path)
+        except OSError:
+            pass
+
+    await db.delete(paper)
+    await db.commit()
+    return None
+
 
