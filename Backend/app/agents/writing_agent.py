@@ -123,8 +123,13 @@ class WritingAgent(BaseAgent):
 
             # 4. Tạo prompt chi tiết yêu cầu LLM soạn thảo theo chuẩn mực
             prompt = f"""You are a distinguished scientific academic researcher. Write a comprehensive, rigorous Literature Review report.
-Topic: {session.topic}
-Research Question: {session.research_question or 'Analyze key state-of-the-art developments, methodologies, and benchmarks.'}
+
+AUTHORITATIVE SCOPE (must be followed exactly):
+- Topic: {session.topic}
+- Research Question: {session.research_question or 'Analyze key state-of-the-art developments, methodologies, and benchmarks.'}
+- Write only about this scope. Do NOT reuse facts, diseases, datasets, methods, metrics, or examples from an unrelated domain.
+- Make claims only when they are supported by the Available Papers or Evidence below. If evidence is insufficient, say that it is insufficient rather than inventing details.
+- Cite every factual claim using only the supplied citation keys. Never fabricate a reference.
 
 Available Papers & Citations:
 {"---".join(papers_context)}

@@ -34,7 +34,8 @@ class QdrantService:
     def __init__(self):
         self.dimension = settings.VECTOR_DIMENSION
         self.collection_name = settings.QDRANT_COLLECTION_NAME
-        self.embedding_model = "models/text-embedding-004"
+        # self.embedding_model = "models/text-embedding-004"
+        self.embedding_model = "models/gemini-embedding-001"
         self._init_gemini()
         self.client = self._init_client()
         self._ensure_collection()
@@ -43,7 +44,7 @@ class QdrantService:
         """Khởi tạo API Key cho Google AI Studio Gemini SDK."""
         if settings.GEMINI_API_KEY:
             genai.configure(api_key=settings.GEMINI_API_KEY)
-            logger.info("Configured Gemini API for Text Embeddings (models/text-embedding-004).")
+            logger.info("Configured Gemini API for Text Embeddings (models/gemini-embedding-001).")
         else:
             logger.warning("GEMINI_API_KEY is not configured. Embeddings will use zero-vector fallback.")
 

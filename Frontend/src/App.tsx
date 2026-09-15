@@ -579,22 +579,22 @@ export function App() {
   };
 
   // Handler: Revise Report with User Feedback (UC011)
-  const handleReviseReport = async (feedbackText: string) => {
-    if (!report || !activeSession) return;
+  // const handleReviseReport = async (feedbackText: string) => {
+  //   if (!report || !activeSession) return;
 
-    try {
-      addToast('info', 'WritingAgent đang soạn thảo lại theo góp ý...');
-      const updatedReport = await reportService.reviseReport(report.id, feedbackText);
-      setReport(updatedReport);
-      const reportCitations = await reportService
-        .getReportCitations(updatedReport.id)
-        .catch(() => []);
-      setCitations(reportCitations);
-      addToast('success', `Đã cập nhật báo cáo lên Phiên bản ${updatedReport.version}.0 thành công!`);
-    } catch (err: any) {
-      addToast('error', `Chỉnh sửa báo cáo thất bại: ${err.message}`);
-    }
-  };
+  //   try {
+  //     addToast('info', 'WritingAgent đang soạn thảo lại theo góp ý...');
+  //     const updatedReport = await reportService.reviseReport(report.id, feedbackText);
+  //     setReport(updatedReport);
+  //     const reportCitations = await reportService
+  //       .getReportCitations(updatedReport.id)
+  //       .catch(() => []);
+  //     setCitations(reportCitations);
+  //     addToast('success', `Đã cập nhật báo cáo lên Phiên bản ${updatedReport.version}.0 thành công!`);
+  //   } catch (err: any) {
+  //     addToast('error', `Chỉnh sửa báo cáo thất bại: ${err.message}`);
+  //   }
+  // };
 
   // Handler: Save Config
   const handleSaveConfig = async (update: SystemConfigUpdate) => {
@@ -738,7 +738,7 @@ export function App() {
 
                       await handleStartWorkflow(false, maxPapers);
                     }}
-                    onRevise={handleReviseReport}
+                    // onRevise={handleReviseReport}
                   />
 
                 )}

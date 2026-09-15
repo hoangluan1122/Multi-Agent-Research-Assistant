@@ -61,21 +61,8 @@ class Settings(BaseSettings):
             return v
         return ["*"]
 
-    @field_validator("DEBUG", mode="before")
-    @classmethod
-    def parse_debug_flag(cls, v):
-        """Cho phép dùng các giá trị môi trường như release/prod/dev cho DEBUG."""
-        if isinstance(v, str):
-            normalized = v.strip().lower()
-            if normalized in {"release", "production", "prod", "false", "0", "no", "off"}:
-                return False
-            if normalized in {"debug", "development", "dev", "true", "1", "yes", "on"}:
-                return True
-        return v
-
-    # @trace: REQ-029
-    # Cấu hình Database (Đọc an toàn từ biến môi trường DATABASE_URL hoặc file .env)
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/paperflow"
+    # Cấu hình Database (Mặc định kết nối Neon Serverless PostgreSQL trên Cloud)
+    DATABASE_URL: str = "postgresql+asyncpg://neondb_owner:npg_GSbBip3oC8kf@ep-cool-dust-b3jpkf3f.c-4.ap-southeast-1.aws.neon.tech/neondb?ssl=require"
 
     # Cấu hình Vector Database (Qdrant)
     QDRANT_HOST: str = "localhost"
@@ -85,33 +72,13 @@ class Settings(BaseSettings):
     QDRANT_COLLECTION_NAME: str = "paperflow_chunks"
     VECTOR_DIMENSION: int = 768  # Kích thước vector embedding chuẩn
 
-    # @trace: REQ-027
     # Cấu hình mô hình ngôn ngữ lớn (LLM Settings)
     LLM_PROVIDER: str = "gemini"  # "gemini", "openai", "mock"
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    # @trace: REQ-027, REQ-038
-    DEFAULT_LLM_MODEL: str = "gemini-2.0-flash"
+    DEFAULT_LLM_MODEL: str = "gemini-3.6-flash"
     TEMPERATURE: float = 0.2
-
-    # Cấu hình tìm kiếm học thuật bên ngoài (OpenAlex, arXiv, Semantic Scholar)
-    SEMANTIC_SCHOLAR_API_KEY: str = ""
-    ACADEMIC_SEARCH_TIMEOUT_SECONDS: float = 30.0
-    ACADEMIC_SEARCH_MAX_RETRIES: int = 2
-    ACADEMIC_SEARCH_TRUST_ENV: bool = False
-    ACADEMIC_SEARCH_USER_AGENT: str = "PaperFlow/1.0 Multi-Agent Research Assistant"
-    ACADEMIC_SEARCH_OPENALEX_FALLBACK: bool = True
-    ACADEMIC_SEARCH_CACHE_TTL_SECONDS: int = 900
-    ACADEMIC_SEARCH_CACHE_MAX_ENTRIES: int = 128
-    ACADEMIC_SEARCH_CANDIDATE_MULTIPLIER: int = 4
-    ACADEMIC_SEARCH_MIN_CANDIDATES_PER_SOURCE: int = 30
-    ACADEMIC_SEARCH_MAX_CANDIDATES_PER_SOURCE: int = 40
-    ACADEMIC_SEARCH_MIN_RELEVANCE_SCORE: float = 0.45
-    ARXIV_MIN_REQUEST_INTERVAL_SECONDS: float = 3.2
-    SEMANTIC_SCHOLAR_MIN_REQUEST_INTERVAL_SECONDS: float = 1.1
-    OPENALEX_MIN_REQUEST_INTERVAL_SECONDS: float = 0.2
-    OPENALEX_API_KEY: str = ""
 
     # Cấu hình quy trình Multi-Agent & xử lý tài liệu
     MAX_SEARCH_PAPERS: int = 10     # Số lượng bài báo tối đa tìm kiếm mỗi lần
