@@ -33,7 +33,7 @@ jobs:
 
             echo "Installing backend dependencies..."
             /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install -r Backend/requirements.txt
-            /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install 'pytest>=8,<9'
+            /var/www/Multi-Agent-Research-Assistant/Backend/.venv/bin/python -m pip install 'pytest>=8,<9' 'pytest-asyncio>=0.24,<1'
 
             # @trace: REQ-027, REQ-029
             echo "Configuring environment variables safely..."
