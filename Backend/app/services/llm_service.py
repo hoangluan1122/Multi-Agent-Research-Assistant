@@ -142,41 +142,42 @@ class LLMService:
                                 break
                             continue
 
-                # 2. Thử qua direct REST call (x-goog-api-key header)
+                # 2. Thử qua direct REST call (x-goog-api-key header) với cả v1 và v1beta endpoints
                 try:
                     import httpx
                     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as http_client:
-                        for m_name in models_to_try:
-                            rest_url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent"
-                            body: Dict[str, Any] = {
-                                "contents": [{"parts": [{"text": prompt}]}],
-                                "generationConfig": {"temperature": temperature}
-                            }
-                            if system_instruction:
-                                body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+                        for ver in ["v1", "v1beta"]:
+                            for m_name in models_to_try:
+                                rest_url = f"https://generativelanguage.googleapis.com/{ver}/models/{m_name}:generateContent"
+                                body: Dict[str, Any] = {
+                                    "contents": [{"parts": [{"text": prompt}]}],
+                                    "generationConfig": {"temperature": temperature}
+                                }
+                                if system_instruction:
+                                    body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
 
-                            resp = await http_client.post(
-                                rest_url,
-                                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-                                json=body
-                            )
-                            if resp.status_code == 200:
-                                res_json = resp.json()
-                                candidates = res_json.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    if parts and "text" in parts[0]:
-                                        return parts[0]["text"]
-                            else:
-                                err_json = {}
-                                try:
-                                    err_json = resp.json().get("error", {})
-                                except Exception:
-                                    pass
-                                last_error = err_json.get("message", resp.text)
-                                logger.warning(f"Direct REST model {m_name} returned {resp.status_code}: {last_error}")
-                                if resp.status_code in (400, 401, 403):
-                                    break
+                                resp = await http_client.post(
+                                    rest_url,
+                                    headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                                    json=body
+                                )
+                                if resp.status_code == 200:
+                                    res_json = resp.json()
+                                    candidates = res_json.get("candidates", [])
+                                    if candidates:
+                                        parts = candidates[0].get("content", {}).get("parts", [])
+                                        if parts and "text" in parts[0]:
+                                            return parts[0]["text"]
+                                else:
+                                    err_json = {}
+                                    try:
+                                        err_json = resp.json().get("error", {})
+                                    except Exception:
+                                        pass
+                                    last_error = err_json.get("message", resp.text)
+                                    logger.warning(f"Direct REST model {m_name} ({ver}) returned {resp.status_code}: {last_error}")
+                                    if resp.status_code in (400, 401, 403):
+                                        break
                 except Exception as e:
                     last_error = str(e)
                     logger.warning(f"Direct REST call failed: {e}")

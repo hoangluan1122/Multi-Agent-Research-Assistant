@@ -346,12 +346,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 placeholder="Ví dụ: gemini-2.0-flash, gemini-1.5-flash, gpt-4o, llama-3.3-70b-versatile"
                 className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
               />
+              {provider === 'gemini' && (
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-[11px] text-gray-400">Chọn nhanh mô hình:</span>
+                  <button
+                    type="button"
+                    onClick={() => setModel('gemini-2.0-flash')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                      model === 'gemini-2.0-flash'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    ⚡ gemini-2.0-flash (Khuyên dùng)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModel('gemini-1.5-flash')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                      model === 'gemini-1.5-flash'
+                        ? 'bg-indigo-600 border-indigo-500 text-white shadow-md shadow-indigo-600/30'
+                        : 'bg-gray-800/80 border-gray-700 text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    gemini-1.5-flash
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* API Keys */}
             <div className="space-y-3 pt-1">
               {provider === 'gemini' ? (
-                <div>
+                <div className="space-y-2">
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-gray-300 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
@@ -361,7 +388,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         href="https://aistudio.google.com/app/apikey"
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline"
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline font-medium"
                       >
                         Lấy API Key miễn phí ↗
                       </a>
@@ -395,9 +422,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span>⚠️ Khóa này có định dạng của OpenAI (tiền tố sk-). Nếu bạn muốn dùng OpenAI, hãy bấm chọn tab <b>OpenAI</b> ở trên.</span>
                     </p>
                   ) : (
-                    <p className="mt-1 text-[10px] text-gray-400">
-                      💡 Khóa Google Gemini bắt đầu bằng <b>AQ.</b> hoặc <b>AIza</b> được cấp miễn phí từ <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 underline">Google AI Studio</a>.
-                    </p>
+                    <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/20 text-[11px] text-gray-300 space-y-1.5">
+                      <div className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                        <span>💡 Hướng dẫn lấy Key Google Gemini hoạt động 100%:</span>
+                      </div>
+                      <ol className="list-decimal list-inside space-y-1 text-gray-300 leading-relaxed text-[11px]">
+                        <li>
+                          Mở trang: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 underline font-semibold">Google AI Studio (aistudio.google.com)</a>
+                        </li>
+                        <li>
+                          Bấm nút <b>&quot;+ Create API key&quot;</b> và chọn <b>&quot;Create API key in new project&quot;</b> <span className="text-amber-300">(bắt buộc chọn tạo trong project mới để tự động kích hoạt API)</span>.
+                        </li>
+                        <li>
+                          Sao chép toàn bộ chuỗi khóa (bắt đầu bằng <code>AQ.</code> hoặc <code>AIza</code>) và dán vào ô trên.
+                        </li>
+                      </ol>
+                    </div>
                   )}
                 </div>
               ) : (
