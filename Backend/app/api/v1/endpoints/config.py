@@ -143,6 +143,12 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                 "status": "error",
                 "message": f"Lỗi kết nối LLM ({target_provider}): Khóa API {target_provider.upper()} chưa được nhập hoặc chưa cấu hình trên hệ thống."
             }
+        # @trace: REQ-042: Cảnh báo người dùng nếu nhập nhầm khóa của Google Gemini sang OpenAI
+        if target_provider == "openai" and (api_key.startswith("AQ.") or api_key.startswith("AIza")):
+            return {
+                "status": "error",
+                "message": "Lỗi kết nối LLM (openai): Khóa API bạn nhập có định dạng của Google Gemini (bắt đầu bằng 'AQ.' hoặc 'AIza'). Vui lòng chọn thẻ 'Google Gemini' ở trên hoặc nhập khóa OpenAI hợp lệ (bắt đầu bằng 'sk-')."
+            }
         http_client = None
         try:
             import httpx
@@ -183,6 +189,12 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
         return {
             "status": "error",
             "message": "Lỗi kết nối LLM (gemini): Khóa GEMINI_API_KEY chưa được nhập hoặc chưa cấu hình trên hệ thống."
+        }
+    # @trace: REQ-042: Cảnh báo nếu người dùng nhập nhầm khóa OpenAI sang Gemini
+    if api_key.startswith("sk-"):
+        return {
+            "status": "error",
+            "message": "Lỗi kết nối LLM (gemini): Khóa API bạn nhập có định dạng của OpenAI (bắt đầu bằng 'sk-'). Vui lòng chọn thẻ 'OpenAI' ở trên hoặc nhập khóa Google Gemini hợp lệ (lấy từ Google AI Studio)."
         }
 
     clean_target = target_model

@@ -292,7 +292,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     key={p.id}
                     onClick={() => {
                       setProvider(p.id);
-                      if (p.id === 'gemini') setModel('gemini-2.5-flash');
+                      if (p.id === 'gemini') setModel('gemini-2.0-flash');
                       if (p.id === 'openai') setModel('gpt-4o-mini');
                       if (p.id === 'groq') setModel('llama-3.3-70b-versatile');
                       if (p.id === 'openrouter') setModel('deepseek/deepseek-chat');
@@ -352,6 +352,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     placeholder={t.geminiKeyPlaceholder}
                     className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
                   />
+                  {geminiKey.trim().startsWith('sk-') && (
+                    <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
+                      <span>⚠️ Khóa này có định dạng của OpenAI (tiền tố sk-). Nếu bạn muốn dùng OpenAI, hãy bấm chọn tab <b>OpenAI</b> ở trên.</span>
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -371,6 +376,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       placeholder={t.apiKeyPlaceholder}
                       className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
                     />
+                    {(openaiKey.trim().startsWith('AQ.') || openaiKey.trim().startsWith('AIza')) && (
+                      <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
+                        <span>⚠️ Khóa này là của Google Gemini (bắt đầu bằng AQ./AIza). Vui lòng bấm chọn tab <b>Google Gemini</b> ở trên để sử dụng.</span>
+                      </p>
+                    )}
                   </div>
 
                   {(provider === 'groq' || provider === 'openrouter') && (
