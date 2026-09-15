@@ -56,8 +56,8 @@ def test_review_agent_mock_returns_transparent_needs_revision():
 
 # @trace: REQ-027, REQ-038
 def test_default_llm_model_is_gemini_2_0():
-    """Kiểm tra mô hình mặc định trong config là gemini-2.0-flash chuẩn Google."""
-    assert settings.DEFAULT_LLM_MODEL in ["gemini-2.0-flash", "gemini-1.5-flash"]
+    """Kiểm tra mô hình mặc định trong config là gemini chuẩn Google."""
+    assert settings.DEFAULT_LLM_MODEL in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash"]
 
 
 # @trace: REQ-029
