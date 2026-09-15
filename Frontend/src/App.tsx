@@ -781,7 +781,7 @@ export function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         config={config}
         onSave={handleSaveConfig}
-        onTestLlm={() => configService.testLlm()}
+        onTestLlm={(payload) => configService.testLlm(payload)}
       />
 
       <AuthModal

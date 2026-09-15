@@ -243,3 +243,70 @@ async def test_paper_delete_clear_and_search_clear_existing():
                 await db.delete(s_del)
                 await db.commit()
 
+
+# @trace: REQ-042
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_missing_openai_key():
+    """Kiểm tra REQ-042: Gọi /config/test-llm với provider OpenAI nhưng không có key trả về thông báo lỗi rõ ràng."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from unittest.mock import patch
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("app.core.config.settings.OPENAI_API_KEY", ""):
+            resp = await client.post("/api/v1/config/test-llm", json={"llm_provider": "openai", "api_key": ""})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "error"
+            assert "OPENAI" in data["message"]
+
+
+# @trace: REQ-042
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_openai_success():
+    """Kiểm tra REQ-042: Gọi /config/test-llm với credentials OpenAI động kết nối thành công."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from unittest.mock import patch, MagicMock, AsyncMock
+
+    mock_choice = MagicMock()
+    mock_choice.message.content = "PaperFlow LLM connection is healthy and working!"
+    mock_completion = MagicMock()
+    mock_completion.choices = [mock_choice]
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("openai.resources.chat.completions.AsyncCompletions.create", new_callable=AsyncMock) as mock_create:
+            mock_create.return_value = mock_completion
+            payload = {
+                "llm_provider": "openai",
+                "default_model": "gpt-4o-mini",
+                "api_key": "sk-test-valid-mock-key-12345"
+            }
+            resp = await client.post("/api/v1/config/test-llm", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "ok"
+            assert "OPENAI" in data["message"]
+            assert "gpt-4o-mini" in data["message"]
+            assert "PaperFlow LLM" in data["response"]
+
+
+# @trace: REQ-042
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_gemini_missing_key():
+    """Kiểm tra REQ-042: Gọi /config/test-llm với provider Gemini nhưng không có key trả về thông báo lỗi rõ ràng."""
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from unittest.mock import patch
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("app.core.config.settings.GEMINI_API_KEY", ""):
+            resp = await client.post("/api/v1/config/test-llm", json={"llm_provider": "gemini", "api_key": ""})
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "error"
+            assert "GEMINI" in data["message"]
+

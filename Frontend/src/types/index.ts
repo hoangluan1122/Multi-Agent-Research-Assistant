@@ -201,4 +201,13 @@ export interface SystemConfigUpdate {
   use_system_default?: boolean;
 }
 
+// @trace: REQ-042
+export interface TestLlmRequest {
+  llm_provider?: string;
+  default_model?: string;
+  api_key?: string;
+  base_url?: string;
+}
+
+
 

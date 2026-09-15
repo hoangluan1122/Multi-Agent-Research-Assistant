@@ -77,88 +77,107 @@ class LLMService:
         """
         target_model = model or self.default_model
 
-        # @trace: REQ-038, REQ-039, REQ-040
+        # @trace: REQ-038, REQ-039, REQ-040, REQ-042
         last_error = None
 
-        # 1. Thử gọi Google GenAI SDK (google-genai v2.x)
-        api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
-        if api_key and not api_key.startswith("your_") and len(api_key) > 15:
-            # Danh sách model chuẩn chính thức của Google Gemini API
-            official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
-            
-            # Chuẩn hóa target_model nếu tên model không tồn tại trên Google
-            clean_target = target_model
-            if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
-                clean_target = "gemini-2.0-flash"
+        # Hàm trợ giúp gọi OpenAI
+        async def _try_openai() -> Optional[str]:
+            nonlocal last_error
+            if self.openai_client and settings.OPENAI_API_KEY:
+                try:
+                    messages = []
+                    if system_instruction:
+                        messages.append({"role": "system", "content": system_instruction})
+                    messages.append({"role": "user", "content": prompt})
 
-            candidate_models = [clean_target] + official_gemini_models
-            models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
-
-            if self.genai_client:
-                for m_name in models_to_try:
-                    try:
-                        from google.genai import types
-                        config = types.GenerateContentConfig(
+                    response = await asyncio.wait_for(
+                        self.openai_client.chat.completions.create(
+                            model=target_model if "gpt" in target_model else "gpt-4o-mini",
+                            messages=messages,
                             temperature=temperature,
-                            system_instruction=system_instruction
-                        )
-                        response = await asyncio.wait_for(
-                            self.genai_client.aio.models.generate_content(
-                                model=m_name,
-                                contents=prompt,
-                                config=config
-                            ),
-                            timeout=25.0
-                        )
-                        if response and response.text:
-                            return response.text
-                    except Exception as e:
-                        last_error = str(e)
-                        logger.warning(f"Google GenAI model {m_name} failed: {e}")
-                        continue
+                        ),
+                        timeout=15.0
+                    )
+                    return response.choices[0].message.content or ""
+                except Exception as e:
+                    last_error = str(e)
+                    logger.error(f"OpenAI generation error: {e}")
+            return None
 
-            # Thử qua legacy google.generativeai nếu có (đây là API call thật, an toàn khi allow_mock=False)
-            if hasattr(self, 'legacy_genai') and self.legacy_genai:
-                for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
-                    try:
-                        g_model = self.legacy_genai.GenerativeModel(
-                            model_name=m_name,
-                            system_instruction=system_instruction
-                        )
-                        response = await asyncio.to_thread(
-                            g_model.generate_content,
-                            prompt,
-                            generation_config={"temperature": temperature}
-                        )
-                        if response and response.text:
-                            return response.text
-                    except Exception as e:
-                        last_error = str(e)
-                        logger.warning(f"Legacy Gemini model {m_name} failed: {e}")
-                        continue
+        # Hàm trợ giúp gọi Google Gemini SDK
+        async def _try_gemini() -> Optional[str]:
+            nonlocal last_error
+            api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
+            if api_key and not api_key.startswith("your_") and len(api_key) > 15:
+                official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+                clean_target = target_model
+                if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
+                    clean_target = "gemini-2.0-flash"
+
+                candidate_models = [clean_target] + official_gemini_models
+                models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+
+                if self.genai_client:
+                    for m_name in models_to_try:
+                        try:
+                            from google.genai import types
+                            config = types.GenerateContentConfig(
+                                temperature=temperature,
+                                system_instruction=system_instruction
+                            )
+                            response = await asyncio.wait_for(
+                                self.genai_client.aio.models.generate_content(
+                                    model=m_name,
+                                    contents=prompt,
+                                    config=config
+                                ),
+                                timeout=25.0
+                            )
+                            if response and response.text:
+                                return response.text
+                        except Exception as e:
+                            last_error = str(e)
+                            logger.warning(f"Google GenAI model {m_name} failed: {e}")
+                            continue
+
+                if hasattr(self, 'legacy_genai') and self.legacy_genai:
+                    for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+                        try:
+                            g_model = self.legacy_genai.GenerativeModel(
+                                model_name=m_name,
+                                system_instruction=system_instruction
+                            )
+                            response = await asyncio.to_thread(
+                                g_model.generate_content,
+                                prompt,
+                                generation_config={"temperature": temperature}
+                            )
+                            if response and response.text:
+                                return response.text
+                        except Exception as e:
+                            last_error = str(e)
+                            logger.warning(f"Legacy Gemini model {m_name} failed: {e}")
+                            continue
+            else:
+                last_error = "Khóa GEMINI_API_KEY chưa được thiết lập trên hệ thống"
+            return None
+
+        # Điều phối theo provider được cấu hình (Gemini vs OpenAI / tương thích)
+        if self.provider != "gemini":
+            result = await _try_openai()
+            if result is not None:
+                return result
+            result = await _try_gemini()
+            if result is not None:
+                return result
         else:
-            last_error = "Khóa GEMINI_API_KEY chưa được thiết lập trên hệ thống"
+            result = await _try_gemini()
+            if result is not None:
+                return result
+            result = await _try_openai()
+            if result is not None:
+                return result
 
-        # 2. Thử gọi OpenAI hoặc API tương thích OpenAI
-        if self.openai_client and settings.OPENAI_API_KEY:
-            try:
-                messages = []
-                if system_instruction:
-                    messages.append({"role": "system", "content": system_instruction})
-                messages.append({"role": "user", "content": prompt})
-
-                response = await asyncio.wait_for(
-                    self.openai_client.chat.completions.create(
-                        model=target_model if "gpt" in target_model else "gpt-4o-mini",
-                        messages=messages,
-                        temperature=temperature,
-                    ),
-                    timeout=15.0
-                )
-                return response.choices[0].message.content or ""
-            except Exception as e:
-                last_error = str(e)
-                logger.error(f"OpenAI generation error: {e}")
 
         if not allow_mock:
             diag = f" ({last_error})" if last_error else ""

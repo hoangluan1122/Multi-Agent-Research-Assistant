@@ -38,3 +38,11 @@ class SystemConfigUpdate(BaseModel):
     max_review_retries: Optional[int] = None
     use_system_default: Optional[bool] = None
 
+
+# @trace: REQ-042
+class TestLlmRequest(BaseModel):
+    """Schema dữ liệu yêu cầu kiểm tra kết nối LLM động theo form cấu hình hiện tại (in-flight)."""
+    llm_provider: Optional[str] = None
+    default_model: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None

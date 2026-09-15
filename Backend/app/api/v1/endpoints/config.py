@@ -3,10 +3,12 @@ Endpoint Cấu hình Hệ thống (System Configuration API - UC013).
 Cung cấp API xem cấu hình đang hoạt động (LLM provider, model, qdrant, quota) và cập nhật tham số vận hành khi có quyền quản trị.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+import asyncio
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Body
 from app.core.config import settings
 from app.core.security import verify_admin_key
-from app.schemas.config import SystemConfigResponse, SystemConfigUpdate
+from app.schemas.config import SystemConfigResponse, SystemConfigUpdate, TestLlmRequest
 from app.services.llm_service import llm_service
 
 router = APIRouter(prefix="/config", tags=["System Configuration (UC013)"])
@@ -115,25 +117,125 @@ async def update_system_config(payload: SystemConfigUpdate):
         use_system_key=not _is_using_custom_key
     )
 
-# @trace: REQ-041
+# @trace: REQ-041, REQ-042
 @router.post("/test-llm")
-async def test_llm_connection():
+async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=None)):
     """
-    Kiểm tra kết nối trực tiếp với LLM Provider đang cấu hình:
+    Kiểm tra kết nối trực tiếp với LLM Provider (REQ-041, REQ-042):
+    - Hỗ trợ kiểm tra động (in-flight) các tham số được gửi lên từ form Cài Đặt (provider, model, API key, base_url)
+      mà không bắt buộc người dùng phải nhấn 'Lưu' trước.
+    - Nếu không gửi payload, sử dụng cấu hình đang hoạt động trên hệ thống.
     - Gửi câu hỏi thử nghiệm ngắn gọn tới mô hình thật (allow_mock=False).
     - Trả về thông báo thành công cùng phản hồi thực tế từ AI hoặc thông báo lỗi rõ ràng.
     """
-    try:
-        test_prompt = "Say 'PaperFlow LLM connection is healthy and working!' in exactly 1 sentence."
-        response_text = await llm_service.generate_text(test_prompt, temperature=0.0, allow_mock=False)
-        return {
-            "status": "ok",
-            "message": f"Kết nối {settings.LLM_PROVIDER.upper()} ({settings.DEFAULT_LLM_MODEL}) thành công!",
-            "response": response_text.strip()
-        }
-    except Exception as e:
+    target_provider = (payload.llm_provider.strip().lower() if (payload and payload.llm_provider) else settings.LLM_PROVIDER.lower())
+    target_model = (payload.default_model.strip() if (payload and payload.default_model) else settings.DEFAULT_LLM_MODEL)
+    custom_key = (payload.api_key.strip() if (payload and payload.api_key) else None)
+    custom_base_url = (payload.base_url.strip() if (payload and payload.base_url) else None)
+    test_prompt = "Say 'PaperFlow LLM connection is healthy and working!' in exactly 1 sentence."
+
+    # Trường hợp 1: Provider là OpenAI hoặc OpenAI-compatible (Groq, OpenRouter...)
+    if target_provider != "gemini":
+        api_key = custom_key or (settings.OPENAI_API_KEY.strip() if settings.OPENAI_API_KEY else "")
+        base_url = custom_base_url or settings.OPENAI_BASE_URL
+        if not api_key or api_key.startswith("your_"):
+            return {
+                "status": "error",
+                "message": f"Lỗi kết nối LLM ({target_provider}): Khóa API {target_provider.upper()} chưa được nhập hoặc chưa cấu hình trên hệ thống."
+            }
+        try:
+            from openai import AsyncOpenAI
+            temp_openai = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            chosen_model = target_model if target_model else ("gpt-4o-mini" if target_provider == "openai" else "llama-3.3-70b-versatile")
+            response = await asyncio.wait_for(
+                temp_openai.chat.completions.create(
+                    model=chosen_model,
+                    messages=[{"role": "user", "content": test_prompt}],
+                    temperature=0.0
+                ),
+                timeout=20.0
+            )
+            text = response.choices[0].message.content or ""
+            return {
+                "status": "ok",
+                "message": f"Kết nối {target_provider.upper()} ({chosen_model}) thành công!",
+                "response": text.strip()
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Lỗi kết nối LLM ({target_provider}): {str(e)}"
+            }
+
+    # Trường hợp 2: Provider là Google Gemini
+    api_key = custom_key or (settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else "")
+    if not api_key or api_key.startswith("your_") or len(api_key) < 15:
         return {
             "status": "error",
-            "message": f"Lỗi kết nối LLM ({settings.LLM_PROVIDER}): {str(e)}"
+            "message": "Lỗi kết nối LLM (gemini): Khóa GEMINI_API_KEY chưa được nhập hoặc chưa cấu hình trên hệ thống."
         }
+
+    clean_target = target_model
+    if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
+        clean_target = "gemini-2.0-flash"
+    candidate_models = [clean_target, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+    last_err = None
+
+    # Thử gọi google-genai SDK
+    try:
+        from google import genai
+        from google.genai import types
+        temp_client = genai.Client(api_key=api_key)
+        for m_name in models_to_try:
+            try:
+                config = types.GenerateContentConfig(temperature=0.0)
+                response = await asyncio.wait_for(
+                    temp_client.aio.models.generate_content(
+                        model=m_name,
+                        contents=test_prompt,
+                        config=config
+                    ),
+                    timeout=20.0
+                )
+                if response and response.text:
+                    return {
+                        "status": "ok",
+                        "message": f"Kết nối GEMINI ({m_name}) thành công!",
+                        "response": response.text.strip()
+                    }
+            except Exception as e:
+                last_err = str(e)
+                continue
+    except Exception as e:
+        last_err = str(e)
+
+    # Thử qua legacy google.generativeai nếu có
+    try:
+        import google.generativeai as gai
+        gai.configure(api_key=api_key)
+        for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
+            try:
+                g_model = gai.GenerativeModel(model_name=m_name)
+                response = await asyncio.to_thread(
+                    g_model.generate_content,
+                    test_prompt,
+                    generation_config={"temperature": 0.0}
+                )
+                if response and response.text:
+                    return {
+                        "status": "ok",
+                        "message": f"Kết nối GEMINI ({m_name}) thành công!",
+                        "response": response.text.strip()
+                    }
+            except Exception as e:
+                last_err = str(e)
+                continue
+    except Exception as e:
+        last_err = str(e)
+
+    return {
+        "status": "error",
+        "message": f"Lỗi kết nối LLM (gemini): {last_err or 'Không thể kết nối tới Google Gemini API'}"
+    }
 

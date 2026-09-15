@@ -1,7 +1,7 @@
-// @trace: REQ-011, REQ-012
+// @trace: REQ-011, REQ-012, REQ-041, REQ-042
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
-import type { SystemConfig, SystemConfigUpdate } from '../../types';
+import type { SystemConfig, SystemConfigUpdate, TestLlmRequest } from '../../types';
 import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck } from 'lucide-react';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
@@ -11,7 +11,7 @@ interface SettingsModalProps {
   onClose: () => void;
   config: SystemConfig | null;
   onSave: (update: SystemConfigUpdate) => Promise<void>;
-  onTestLlm: () => Promise<{ status: string; message: string; response?: string }>;
+  onTestLlm: (payload?: TestLlmRequest) => Promise<{ status: string; message: string; response?: string }>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -56,11 +56,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   }, [config]);
 
+  // @trace: REQ-041, REQ-042: Kiểm tra kết nối động theo thông số đang điền trên form
   const handleTestConnection = async () => {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await onTestLlm();
+      const isCustom = apiMode === 'custom';
+      const keyToUse = isCustom
+        ? (provider === 'gemini' ? geminiKey.trim() : openaiKey.trim())
+        : undefined;
+      const baseUrlToUse = (provider === 'groq' || provider === 'openrouter')
+        ? openaiBaseUrl.trim() || undefined
+        : undefined;
+
+      const payload: TestLlmRequest = {
+        llm_provider: provider,
+        default_model: model,
+        api_key: keyToUse || undefined,
+        base_url: baseUrlToUse,
+      };
+
+      const res = await onTestLlm(payload);
       setTestResult(res);
     } catch (err: any) {
       setTestResult({
