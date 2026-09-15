@@ -12,10 +12,19 @@ _STOPWORDS = {
     "anh", "bao", "cac", "cho", "co", "cong", "cua", "cuu", "den", "doi",
     "duoc", "hay", "la", "mot", "nghien", "nhung", "noi", "phan", "qua",
     "tai", "tac", "the", "thi", "trong", "tu", "ve", "voi", "va",
-    "mo", "hinh", "dai", "dang", "day", "hoc", "sau", "may", "bai", "duoi", "tren", "giua"
+    "mo", "hinh", "dai", "dang", "day", "hoc", "sau", "may", "bai", "duoi", "tren", "giua",
+    "bac", "cuoc", "song", "doi", "hai", "nguoi"
 }
 
+# @trace: REQ-026, REQ-032
 _PHRASE_MAPPINGS = [
+    ("co bac", ["gambling", "problem", "gambling", "betting"]),
+    ("danh bac", ["gambling", "betting"]),
+    ("ca cuoc", ["sports", "betting", "gambling"]),
+    ("ca do", ["sports", "betting", "gambling"]),
+    ("tro choi may rui", ["gambling", "games", "chance"]),
+    ("cuoc song", ["quality", "life"]),
+    ("doi song", ["quality", "life"]),
     ("deep learning", ["deep", "learning"]),
     ("mo hinh", ["model"]),
     ("da dang", ["diversity"]),

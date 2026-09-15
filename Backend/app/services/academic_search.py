@@ -17,6 +17,7 @@ logger = logging.getLogger("paperflow.search")
 
 _RETRIABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _DEFAULT_SOURCES = ["openalex"]
+# @trace: REQ-031, REQ-032
 _SYNONYM_GROUPS = [
     {"ai", "artificial", "intelligence"},
     {"ml", "machine", "learning"},
@@ -26,7 +27,18 @@ _SYNONYM_GROUPS = [
     {"student", "students", "adolescent", "adolescents", "school", "schools", "youth", "teenager", "teenagers"},
     {"health", "healthcare", "medical", "medicine", "clinical"},
     {"segmentation", "segment", "segmented"},
+    {"gambling", "gamble", "gambler", "gamblers", "betting", "bet", "bets"},
 ]
+
+# @trace: REQ-031: Các từ ngữ bổ trợ chung trong bài báo học thuật, không đại diện cho thực thể chính
+_GENERIC_ACADEMIC_TERMS = {
+    "quality", "life", "public", "health", "impact", "impacts", "effect", "effects",
+    "digital", "intervention", "interventions", "survey", "evaluation", "study",
+    "determinants", "analysis", "review", "overview", "factors", "approaches",
+    "methods", "management", "prevention", "outcomes", "evidence", "systematic",
+    "rapid", "meta", "assessment", "investigation", "role", "implications", "social",
+    "sociocultural", "psychological", "adults", "children", "general", "population"
+}
 
 
 class AcademicSearchError(RuntimeError):
@@ -57,11 +69,13 @@ class AcademicSearchService:
         "to", "using", "with",
     }
 
+    # @trace: REQ-026, REQ-032
     _VIETNAMESE_STOPWORDS = {
         "của", "và", "các", "những", "cho", "trong", "đến", "về", "như", "thế",
         "nào", "là", "gì", "tại", "ở", "với", "được", "bị", "bởi", "do", "ra",
         "vào", "lại", "này", "đó", "kia", "đây", "đấy", "mo", "hinh", "dai",
-        "dang", "day", "hoc", "sau", "may", "nghien", "cuu", "bai", "bao"
+        "dang", "day", "hoc", "sau", "may", "nghien", "cuu", "bai", "bao",
+        "bac", "cuoc", "song", "doi", "hai", "nguoi"
     }
 
     def __init__(self):
@@ -934,17 +948,28 @@ class AcademicSearchService:
                 return True
         return False
 
-    # @trace: REQ-017
+    # @trace: REQ-017, REQ-033
     def _is_unrelated_domain(self, query: str, title: str, abstract: str) -> bool:
-        """Lọc các bài báo vi phạm ngữ cảnh (ví dụ: tìm 'tiền/tài chính' nhưng ra 'tuyến tiền liệt'/prostate)"""
+        """Lọc các bài báo vi phạm ngữ cảnh (ví dụ: tìm 'tiền/tài chính' nhưng ra 'tuyến tiền liệt'/prostate, hoặc tìm 'cờ bạc' nhưng ra hen suyễn/chuột biến gen)."""
         q_lower = query.lower()
         content_lower = f"{title} {abstract}".lower()
         
-        # Nếu tìm về tiền tệ / tài chính nhưng bài báo là về tuyến tiền liệt / y khoa
+        # 1. Nếu tìm về tiền tệ / tài chính nhưng bài báo là về tuyến tiền liệt / y khoa
         is_money_query = any(w in q_lower for w in ["tiền", "money", "finance", "currency", "tài chính", "monetary", "ngân hàng"])
         if is_money_query:
             if any(med in content_lower for med in ["tuyến tiền liệt", "tiền liệt", "prostate", "psat", "psad"]):
                 return True
+
+        # 2. @trace: REQ-033: Nếu tìm về cờ bạc / cá cược nhưng bài báo về hen suyễn, chuột biến gen BAC, covid tổng quát
+        is_gambling_query = any(w in q_lower for w in ["cờ bạc", "đánh bạc", "cá cược", "cá độ", "gambling", "gamble", "betting"])
+        if is_gambling_query:
+            unrelated_biomedical = [
+                "asthma", "bacterial artificial chromosome", "bac transgenic", "transgenic mice",
+                "zebrafish", "als/ftd"
+            ]
+            if any(med in content_lower for med in unrelated_biomedical):
+                if "gambling" not in content_lower and "betting" not in content_lower:
+                    return True
                 
         return False
 
@@ -955,6 +980,7 @@ class AcademicSearchService:
                 variants.update(group)
         return variants
 
+    # @trace: REQ-031
     def _rank_by_query_match(
         self,
         query: str,
@@ -965,12 +991,16 @@ class AcademicSearchService:
         if not query_terms:
             return papers
 
+        # @trace: REQ-031: Phân tách từ khóa thực thể cốt lõi (Domain Core Terms) và từ bổ trợ chung (Generic Modifiers)
+        core_query_terms = [t for t in query_terms if t not in _GENERIC_ACADEMIC_TERMS]
+        generic_query_terms = [t for t in query_terms if t in _GENERIC_ACADEMIC_TERMS]
+
         scored: List[Dict[str, Any]] = []
         for paper in papers:
             title = paper.get("title") or ""
             abstract = paper.get("abstract") or ""
 
-            # Loại bỏ các bài báo lệch hoàn toàn lĩnh vực chuyên môn (vd: tiền vs tuyến tiền liệt)
+            # Loại bỏ các bài báo lệch hoàn toàn lĩnh vực chuyên môn (vd: tiền vs tuyến tiền liệt, cờ bạc vs hen suyễn)
             if self._is_unrelated_domain(query, title, abstract):
                 continue
 
@@ -987,19 +1017,45 @@ class AcademicSearchService:
             if not matched_terms:
                 continue
 
-            coverage = len(matched_terms) / len(query_terms)
-            title_coverage = len(title_matches) / len(query_terms)
-            minimum_coverage = 1.0 if len(query_terms) == 2 else (0.5 if len(query_terms) <= 4 else 0.34)
-            if len(query_terms) <= 2:
-                if coverage < minimum_coverage:
+            # @trace: REQ-031: Nếu có từ khóa thực thể cốt lõi, bắt buộc phải khớp ít nhất 1 từ khóa cốt lõi
+            if core_query_terms:
+                matched_core = [t for t in core_query_terms if self._term_matches(t, all_terms)]
+                matched_core_title = [t for t in core_query_terms if self._term_matches(t, title_terms)]
+                if not matched_core:
                     continue
-            elif coverage < minimum_coverage and not title_matches:
-                continue
 
-            phrase = " ".join(query_terms)
-            searchable_text = " ".join(self._tokenize(f"{title} {abstract}"))
-            phrase_bonus = 0.1 if phrase and phrase in searchable_text else 0.0
-            score = min(0.99, 0.15 + (0.5 * coverage) + (0.25 * title_coverage) + phrase_bonus)
+                core_coverage = len(matched_core) / len(core_query_terms)
+                core_title_coverage = len(matched_core_title) / len(core_query_terms)
+                min_core_coverage = 1.0 if len(core_query_terms) <= 2 else (0.5 if len(core_query_terms) <= 4 else 0.34)
+                if len(core_query_terms) <= 2:
+                    if core_coverage < min_core_coverage:
+                        continue
+                elif core_coverage < min_core_coverage and not matched_core_title:
+                    continue
+
+                matched_generic = [t for t in generic_query_terms if self._term_matches(t, all_terms)]
+                generic_coverage = (len(matched_generic) / len(generic_query_terms)) if generic_query_terms else 0.0
+
+                phrase = " ".join(query_terms)
+                searchable_text = " ".join(self._tokenize(f"{title} {abstract}"))
+                phrase_bonus = 0.08 if phrase and phrase in searchable_text else 0.0
+
+                score = min(0.99, 0.25 + (0.45 * core_coverage) + (0.20 * core_title_coverage) + (0.10 * generic_coverage) + phrase_bonus)
+            else:
+                coverage = len(matched_terms) / len(query_terms)
+                title_coverage = len(title_matches) / len(query_terms)
+                minimum_coverage = 1.0 if len(query_terms) == 2 else (0.5 if len(query_terms) <= 4 else 0.34)
+                if len(query_terms) <= 2:
+                    if coverage < minimum_coverage:
+                        continue
+                elif coverage < minimum_coverage and not title_matches:
+                    continue
+
+                phrase = " ".join(query_terms)
+                searchable_text = " ".join(self._tokenize(f"{title} {abstract}"))
+                phrase_bonus = 0.1 if phrase and phrase in searchable_text else 0.0
+                score = min(0.99, 0.15 + (0.5 * coverage) + (0.25 * title_coverage) + phrase_bonus)
+
             if score < settings.ACADEMIC_SEARCH_MIN_RELEVANCE_SCORE:
                 continue
 

@@ -86,3 +86,63 @@ async def test_incremental_search_does_not_skip_secondary_sources():
     # Lọc cho truy vấn 'tiền tệ tài chính'
     filtered = service._filter_and_rank_batch("tiền tệ tài chính ngân hàng", dummy_unrelated)
     assert len(filtered) == 0  # Bị loại do lệch ngữ cảnh
+
+
+# @trace: REQ-032
+def test_gambling_vietnamese_query_mapping_and_no_bac_residue():
+    """Kiểm tra từ khóa 'cờ bạc cuộc sống' được ánh xạ sang 'gambling', không bị sót âm 'bac' hoặc 'cuoc'."""
+    from app.services.query_normalizer import fallback_academic_keywords
+    query = fallback_academic_keywords("cờ bạc cuộc sống")
+    assert "gambling" in query
+    assert "quality" in query or "life" in query
+    # Không để sót âm tiết tiếng Việt 'bac' (dễ nhầm với Bacterial Artificial Chromosome)
+    assert "bac" not in query.split()
+    assert "cuoc" not in query.split()
+    assert "song" not in query.split()
+
+
+# @trace: REQ-031, REQ-033
+def test_gambling_search_discards_asthma_and_covid_unrelated_papers():
+    """Kiểm tra tìm kiếm cờ bạc loại bỏ triệt để các bài báo hen suyễn (Asthma) và COVID-19 chỉ khớp từ 'quality of life'."""
+    service = AcademicSearchService()
+    papers = [
+        {
+            "title": "Predicting Problem Gambling in Young Men: The Impact of Sports Gambling Frequency and Internalizing Symptoms",
+            "abstract": "Young men aged 18-25 years are at disproportionately increased risk for gambling problems.",
+            "year": 2025,
+            "source": "openalex"
+        },
+        {
+            "title": "The impacts of stress and loneliness on gambling and gaming problems: A nationwide longitudinal study",
+            "abstract": "Problems related to gambling and digital gaming have been a topic of concern for years.",
+            "year": 2024,
+            "source": "openalex"
+        },
+        {
+            "title": "Psychological and Sociocultural Determinants in Childhood Asthma Disease: Impact on Quality of Life",
+            "abstract": "Asthma is the most common chronic disease in childhood. The presence of this pathology leads to alterations.",
+            "year": 2022,
+            "source": "openalex"
+        },
+        {
+            "title": "Evidence Synthesis of Digital Interventions to Mitigate the Negative Impact of the COVID-19 Pandemic on Public Mental Health: Rapid Meta-review",
+            "abstract": "Accumulating evidence suggests the COVID-19 pandemic has negative effects on public mental health.",
+            "year": 2021,
+            "source": "openalex"
+        },
+        {
+            "title": "C9orf72 BAC Mouse Model with Motor Deficits and Neurodegenerative Features of ALS/FTD",
+            "abstract": "Bacterial Artificial Chromosome BAC transgenic mouse model.",
+            "year": 2016,
+            "source": "openalex"
+        }
+    ]
+
+    ranked = service._rank_by_query_match("gambling quality life", papers)
+    # Chỉ giữ lại 2 bài cờ bạc thực tế, loại bỏ hoàn toàn 3 bài hen suyễn, covid và chuột BAC
+    assert len(ranked) == 2
+    for p in ranked:
+        assert "gambling" in p["title"].lower() or "gambling" in p["abstract"].lower()
+        assert "asthma" not in p["title"].lower()
+        assert "covid" not in p["title"].lower()
+        assert "bac" not in p["title"].lower()
