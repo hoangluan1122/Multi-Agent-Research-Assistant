@@ -1,8 +1,8 @@
-// @trace: REQ-011, REQ-012, REQ-041, REQ-042
+// @trace: REQ-011, REQ-012, REQ-041, REQ-042, REQ-043
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import type { SystemConfig, SystemConfigUpdate, TestLlmRequest } from '../../types';
-import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck } from 'lucide-react';
+import { Cpu, Key, Server, CheckCircle2, AlertCircle, Loader2, Sparkles, Languages, Globe, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { Badge } from '../common/Badge';
 import { useI18n } from '../../i18n/context';
 
@@ -26,9 +26,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // @trace: REQ-012: Chế độ API ('system' = API Web có sẵn, 'custom' = API cá nhân)
   const [apiMode, setApiMode] = useState<'system' | 'custom'>('system');
   const [provider, setProvider] = useState<string>('gemini');
-  const [model, setModel] = useState<string>('gemini-3.7-flash');
+  const [model, setModel] = useState<string>('gemini-2.0-flash');
   const [geminiKey, setGeminiKey] = useState<string>('');
+  const [showGeminiKey, setShowGeminiKey] = useState<boolean>(false);
   const [openaiKey, setOpenaiKey] = useState<string>('');
+  const [showOpenaiKey, setShowOpenaiKey] = useState<boolean>(false);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState<string>('');
   const [semanticScholarKey, setSemanticScholarKey] = useState<string>('');
   const [openAlexKey, setOpenAlexKey] = useState<string>('');
@@ -50,18 +52,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
 
       setProvider(config.llm_provider || 'gemini');
-      setModel(config.default_model || 'gemini-3.7-flash');
+      setModel(config.default_model || 'gemini-2.0-flash');
       setMaxSearch(config.max_search_papers || 10);
       setMaxRetries(config.max_review_retries || 2);
     }
   }, [config]);
 
-  // @trace: REQ-041, REQ-042: Kiểm tra kết nối động theo thông số đang điền trên form
+  // @trace: REQ-041, REQ-042, REQ-043: Kiểm tra kết nối động theo thông số đang điền trên form
   const handleTestConnection = async () => {
+    const isCustom = apiMode === 'custom';
+    if (isCustom) {
+      const currentKey = provider === 'gemini' ? geminiKey.trim() : openaiKey.trim();
+      if (!currentKey) {
+        setTestResult({
+          status: 'error',
+          message: provider === 'gemini'
+            ? 'Vui lòng dán khóa Gemini API Key của bạn (bắt đầu bằng AQ. hoặc AIza) vào ô phía trên trước khi kiểm tra.'
+            : `Vui lòng nhập khóa API Key (${provider.toUpperCase()}) vào ô phía trên trước khi kiểm tra.`,
+        });
+        return;
+      }
+    }
+
     setTesting(true);
     setTestResult(null);
     try {
-      const isCustom = apiMode === 'custom';
       const keyToUse = isCustom
         ? (provider === 'gemini' ? geminiKey.trim() : openaiKey.trim())
         : undefined;
@@ -178,7 +193,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               onClick={() => {
                 setApiMode('system');
                 setProvider('gemini');
-                setModel('gemini-3.7-flash');
+                setModel('gemini-2.0-flash');
               }}
               className={`p-3 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                 apiMode === 'system'
@@ -355,16 +370,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       )}
                     </div>
                   </div>
-                  <input
-                    type="password"
-                    value={geminiKey}
-                    onChange={(e) => setGeminiKey(e.target.value)}
-                    placeholder={t.geminiKeyPlaceholder}
-                    className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-                  />
-                  {geminiKey.trim().startsWith('sk-') && (
+                  <div className="relative">
+                    <input
+                      type={showGeminiKey ? "text" : "password"}
+                      value={geminiKey}
+                      onChange={(e) => setGeminiKey(e.target.value)}
+                      placeholder={t.geminiKeyPlaceholder}
+                      autoComplete="new-password"
+                      data-1p-ignore="true"
+                      data-lpignore="true"
+                      className="w-full bg-gray-800/80 text-gray-100 pl-3.5 pr-10 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGeminiKey(!showGeminiKey)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1 transition-colors"
+                      title={showGeminiKey ? "Ẩn khóa" : "Hiện khóa"}
+                    >
+                      {showGeminiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {geminiKey.trim().startsWith('sk-') ? (
                     <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
                       <span>⚠️ Khóa này có định dạng của OpenAI (tiền tố sk-). Nếu bạn muốn dùng OpenAI, hãy bấm chọn tab <b>OpenAI</b> ở trên.</span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-[10px] text-gray-400">
+                      💡 Khóa Google Gemini bắt đầu bằng <b>AQ.</b> hoặc <b>AIza</b> được cấp miễn phí từ <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-indigo-400 underline">Google AI Studio</a>.
                     </p>
                   )}
                 </div>
@@ -379,13 +411,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <Badge variant="success">{t.keyConfigured}</Badge>
                       )}
                     </div>
-                    <input
-                      type="password"
-                      value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
-                      placeholder={t.apiKeyPlaceholder}
-                      className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showOpenaiKey ? "text" : "password"}
+                        value={openaiKey}
+                        onChange={(e) => setOpenaiKey(e.target.value)}
+                        placeholder={t.apiKeyPlaceholder}
+                        autoComplete="new-password"
+                        data-1p-ignore="true"
+                        data-lpignore="true"
+                        className="w-full bg-gray-800/80 text-gray-100 pl-3.5 pr-10 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOpenaiKey(!showOpenaiKey)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 p-1 transition-colors"
+                        title={showOpenaiKey ? "Ẩn khóa" : "Hiện khóa"}
+                      >
+                        {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                     {(openaiKey.trim().startsWith('AQ.') || openaiKey.trim().startsWith('AIza')) && (
                       <p className="mt-1.5 text-[11px] text-amber-400 flex items-center gap-1">
                         <span>⚠️ Khóa này là của Google Gemini (bắt đầu bằng AQ./AIza). Vui lòng bấm chọn tab <b>Google Gemini</b> ở trên để sử dụng.</span>

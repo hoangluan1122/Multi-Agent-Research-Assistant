@@ -310,3 +310,125 @@ async def test_dynamic_test_llm_gemini_missing_key():
             assert data["status"] == "error"
             assert "GEMINI" in data["message"]
 
+
+# @trace: REQ-043
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_gemini_success_rest():
+    """Kiểm tra REQ-043: Gọi /config/test-llm với Gemini trả về 200 OK thành công qua REST."""
+    from httpx import AsyncClient, ASGITransport, Response
+    from app.main import app
+    from unittest.mock import patch, AsyncMock
+
+    mock_resp = Response(
+        status_code=200,
+        json={
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": "PaperFlow LLM connection is healthy and working!"}]
+                    }
+                }
+            ]
+        }
+    )
+
+    mock_http_client = AsyncMock()
+    mock_http_client.__aenter__.return_value = mock_http_client
+    mock_http_client.post.return_value = mock_resp
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("app.api.v1.endpoints.config.httpx.AsyncClient", return_value=mock_http_client):
+            payload = {
+                "llm_provider": "gemini",
+                "default_model": "gemini-2.0-flash",
+                "api_key": "AQ.mock_valid_gemini_key_12345"
+            }
+            resp = await client.post("/api/v1/config/test-llm", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "ok"
+            assert "GEMINI" in data["message"]
+            assert "PaperFlow LLM" in data["response"]
+
+
+# @trace: REQ-043
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_gemini_auth_unsupported_error():
+    """Kiểm tra REQ-043: Khi Google trả về 401 ACCESS_TOKEN_TYPE_UNSUPPORTED, trả về thông điệp hướng dẫn rõ ràng."""
+    from httpx import AsyncClient, ASGITransport, Response
+    from app.main import app
+    from unittest.mock import patch, AsyncMock
+
+    mock_resp = Response(
+        status_code=401,
+        json={
+            "error": {
+                "code": 401,
+                "message": "Request had invalid authentication credentials.",
+                "status": "UNAUTHENTICATED",
+                "details": [{"reason": "ACCESS_TOKEN_TYPE_UNSUPPORTED"}]
+            }
+        }
+    )
+
+    mock_http_client = AsyncMock()
+    mock_http_client.__aenter__.return_value = mock_http_client
+    mock_http_client.post.return_value = mock_resp
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("app.api.v1.endpoints.config.httpx.AsyncClient", return_value=mock_http_client):
+            payload = {
+                "llm_provider": "gemini",
+                "default_model": "gemini-2.0-flash",
+                "api_key": "AQ.mock_problematic_key_12345"
+            }
+            resp = await client.post("/api/v1/config/test-llm", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "error"
+            assert "401" in data["message"] or "xác thực" in data["message"].lower()
+            assert "aistudio.google.com" in data["message"]
+
+
+# @trace: REQ-043
+@pytest.mark.asyncio
+async def test_dynamic_test_llm_gemini_invalid_key_error():
+    """Kiểm tra REQ-043: Khi Google trả về 400 API_KEY_INVALID, trả về thông báo khóa không hợp lệ."""
+    from httpx import AsyncClient, ASGITransport, Response
+    from app.main import app
+    from unittest.mock import patch, AsyncMock
+
+    mock_resp = Response(
+        status_code=400,
+        json={
+            "error": {
+                "code": 400,
+                "message": "API key not valid. Please pass a valid API key.",
+                "status": "INVALID_ARGUMENT",
+                "details": [{"reason": "API_KEY_INVALID"}]
+            }
+        }
+    )
+
+    mock_http_client = AsyncMock()
+    mock_http_client.__aenter__.return_value = mock_http_client
+    mock_http_client.post.return_value = mock_resp
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        with patch("app.api.v1.endpoints.config.httpx.AsyncClient", return_value=mock_http_client):
+            payload = {
+                "llm_provider": "gemini",
+                "default_model": "gemini-2.0-flash",
+                "api_key": "AIzaSy_mock_invalid_key_12345"
+            }
+            resp = await client.post("/api/v1/config/test-llm", json=payload)
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["status"] == "error"
+            assert "không hợp lệ" in data["message"]
+
+
+

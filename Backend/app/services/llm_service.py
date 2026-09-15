@@ -40,14 +40,6 @@ class LLMService:
             except Exception as e:
                 logger.warning(f"Failed to initialize Google GenAI client: {e}")
 
-            try:
-                import google.generativeai as gai
-                gai.configure(api_key=settings.GEMINI_API_KEY)
-                self.legacy_genai = gai
-                logger.info("Legacy google.generativeai initialized as backup.")
-            except Exception as e:
-                logger.warning(f"Failed to initialize legacy google.generativeai: {e}")
-
         # Khởi tạo OpenAI Client
         if settings.OPENAI_API_KEY:
             try:
@@ -110,7 +102,8 @@ class LLMService:
                     logger.error(f"OpenAI generation error: {e}")
             return None
 
-        # Hàm trợ giúp gọi Google Gemini SDK
+        # Hàm trợ giúp gọi Google Gemini
+        # @trace: REQ-043: Ưu tiên google.genai SDK + direct REST fallback via httpx, loại bỏ hoàn toàn legacy SDK
         async def _try_gemini() -> Optional[str]:
             nonlocal last_error
             api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
@@ -123,6 +116,7 @@ class LLMService:
                 candidate_models = [clean_target] + official_gemini_models
                 models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
 
+                # 1. Thử gọi Google GenAI SDK (v2.22+)
                 if self.genai_client:
                     for m_name in models_to_try:
                         try:
@@ -143,27 +137,49 @@ class LLMService:
                                 return response.text
                         except Exception as e:
                             last_error = str(e)
-                            logger.warning(f"Google GenAI model {m_name} failed: {e}")
+                            logger.warning(f"Google GenAI SDK model {m_name} failed: {e}")
+                            if "ACCESS_TOKEN_TYPE_UNSUPPORTED" in str(e) or "API_KEY_INVALID" in str(e):
+                                break
                             continue
 
-                if hasattr(self, 'legacy_genai') and self.legacy_genai:
-                    for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
-                        try:
-                            g_model = self.legacy_genai.GenerativeModel(
-                                model_name=m_name,
-                                system_instruction=system_instruction
+                # 2. Thử qua direct REST call (x-goog-api-key header)
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0)) as http_client:
+                        for m_name in models_to_try:
+                            rest_url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent"
+                            body: Dict[str, Any] = {
+                                "contents": [{"parts": [{"text": prompt}]}],
+                                "generationConfig": {"temperature": temperature}
+                            }
+                            if system_instruction:
+                                body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+                            resp = await http_client.post(
+                                rest_url,
+                                headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                                json=body
                             )
-                            response = await asyncio.to_thread(
-                                g_model.generate_content,
-                                prompt,
-                                generation_config={"temperature": temperature}
-                            )
-                            if response and response.text:
-                                return response.text
-                        except Exception as e:
-                            last_error = str(e)
-                            logger.warning(f"Legacy Gemini model {m_name} failed: {e}")
-                            continue
+                            if resp.status_code == 200:
+                                res_json = resp.json()
+                                candidates = res_json.get("candidates", [])
+                                if candidates:
+                                    parts = candidates[0].get("content", {}).get("parts", [])
+                                    if parts and "text" in parts[0]:
+                                        return parts[0]["text"]
+                            else:
+                                err_json = {}
+                                try:
+                                    err_json = resp.json().get("error", {})
+                                except Exception:
+                                    pass
+                                last_error = err_json.get("message", resp.text)
+                                logger.warning(f"Direct REST model {m_name} returned {resp.status_code}: {last_error}")
+                                if resp.status_code in (400, 401, 403):
+                                    break
+                except Exception as e:
+                    last_error = str(e)
+                    logger.warning(f"Direct REST call failed: {e}")
             else:
                 last_error = "Khóa GEMINI_API_KEY chưa được thiết lập trên hệ thống"
             return None

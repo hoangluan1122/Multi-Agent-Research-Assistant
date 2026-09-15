@@ -4,6 +4,7 @@ Cung cấp API xem cấu hình đang hoạt động (LLM provider, model, qdrant
 """
 
 import asyncio
+import httpx
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Body
 from app.core.config import settings
@@ -197,14 +198,101 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
             "message": "Lỗi kết nối LLM (gemini): Khóa API bạn nhập có định dạng của OpenAI (bắt đầu bằng 'sk-'). Vui lòng chọn thẻ 'OpenAI' ở trên hoặc nhập khóa Google Gemini hợp lệ (lấy từ Google AI Studio)."
         }
 
-    clean_target = target_model
+    clean_target = (target_model or "gemini-2.0-flash").strip()
     if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
         clean_target = "gemini-2.0-flash"
     candidate_models = [clean_target, "gemini-2.0-flash", "gemini-1.5-flash"]
     models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
     last_err = None
 
-    # Thử gọi google-genai SDK
+    # @trace: REQ-043: Sử dụng direct REST qua httpx với header x-goog-api-key chuẩn Google
+    # Tránh triệt để việc nhầm lẫn AQ. key sang OAuth bearer token của gRPC/legacy SDK và loại bỏ lỗi 404 giả mạo
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0)) as http_client:
+            for m_name in models_to_try:
+                endpoint_url = f"https://generativelanguage.googleapis.com/v1beta/models/{m_name}:generateContent"
+                payload_json = {
+                    "contents": [{"parts": [{"text": test_prompt}]}],
+                    "generationConfig": {"temperature": 0.0}
+                }
+                resp = await http_client.post(
+                    endpoint_url,
+                    headers={
+                        "x-goog-api-key": api_key,
+                        "Content-Type": "application/json"
+                    },
+                    json=payload_json
+                )
+                if resp.status_code == 200:
+                    resp_data = resp.json()
+                    candidates = resp_data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts and "text" in parts[0]:
+                            return {
+                                "status": "ok",
+                                "message": f"Kết nối GEMINI ({m_name}) thành công!",
+                                "response": parts[0]["text"].strip()
+                            }
+                    return {
+                        "status": "ok",
+                        "message": f"Kết nối GEMINI ({m_name}) thành công!",
+                        "response": "PaperFlow LLM connection is healthy and working!"
+                    }
+
+                # Phân tích chi tiết phản hồi lỗi từ Google API
+                err_body = {}
+                try:
+                    err_body = resp.json().get("error", {})
+                except Exception:
+                    pass
+
+                err_status = str(err_body.get("status", ""))
+                err_msg = str(err_body.get("message", ""))
+                err_str_full = str(err_body)
+
+                # Trường hợp 1: 401 UNAUTHENTICATED hoặc ACCESS_TOKEN_TYPE_UNSUPPORTED
+                if resp.status_code == 401 or "ACCESS_TOKEN_TYPE_UNSUPPORTED" in err_str_full or err_status == "UNAUTHENTICATED":
+                    return {
+                        "status": "error",
+                        "message": "Lỗi xác thực Google Gemini (401 Chưa xác thực): Khóa API bạn nhập chưa hợp lệ hoặc chưa được kích hoạt quyền Generative Language. Vui lòng vào https://aistudio.google.com/app/apikey, bấm '+ Create API key', sao chép lại toàn bộ chuỗi khóa (bắt đầu bằng AQ. hoặc AIza) và dán lại vào ô Gemini API Key."
+                    }
+
+                # Trường hợp 2: API_KEY_INVALID (400)
+                if "API_KEY_INVALID" in err_str_full or "API key not valid" in err_msg:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa API Google Gemini không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại khóa API được cấp từ https://aistudio.google.com/app/apikey."
+                    }
+
+                # Trường hợp 3: RESOURCE_EXHAUSTED (429)
+                if resp.status_code == 429 or "RESOURCE_EXHAUSTED" in err_str_full:
+                    return {
+                        "status": "error",
+                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức sử dụng (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
+                    }
+
+                # Trường hợp 4: PERMISSION_DENIED (403)
+                if resp.status_code == 403 or "PERMISSION_DENIED" in err_str_full:
+                    return {
+                        "status": "error",
+                        "message": f"Lỗi kết nối LLM (gemini): Quyền truy cập bị từ chối (403 Forbidden). Chi tiết: {err_msg or 'Vui lòng kiểm tra quyền hạn API Key trên Google AI Studio.'}"
+                    }
+
+                # Trường hợp 5: 404 NOT_FOUND (Model không khả dụng trên endpoint)
+                if resp.status_code == 404:
+                    continue
+
+                # Lỗi khác
+                return {
+                    "status": "error",
+                    "message": f"Lỗi kết nối LLM (gemini): {err_msg or f'Mã lỗi HTTP {resp.status_code}'}"
+                }
+    except Exception as e:
+        last_err = str(e)
+
+    # Thử qua google-genai SDK mới nhất nếu kết nối REST gặp sự cố mạng
     try:
         from google import genai
         from google.genai import types
@@ -218,7 +306,7 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                         contents=test_prompt,
                         config=config
                     ),
-                    timeout=20.0
+                    timeout=15.0
                 )
                 if response and response.text:
                     return {
@@ -228,44 +316,11 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                     }
             except Exception as e:
                 err_str = str(e)
-                last_err = err_str
-                # Nếu API key không hợp lệ hoặc bị vô hiệu hóa, thông báo ngay lập tức
-                if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
+                if "ACCESS_TOKEN_TYPE_UNSUPPORTED" in err_str or "401" in err_str:
                     return {
                         "status": "error",
-                        "message": "Lỗi kết nối LLM (gemini): Khóa API Google Gemini không hợp lệ hoặc đã bị vô hiệu hóa. Vui lòng kiểm tra lại khóa API được cấp từ https://aistudio.google.com/app/apikey."
+                        "message": "Lỗi xác thực Google Gemini (401 Chưa xác thực): Khóa API bạn nhập chưa hợp lệ hoặc chưa được kích hoạt quyền Generative Language. Vui lòng vào https://aistudio.google.com/app/apikey, bấm '+ Create API key', sao chép lại toàn bộ chuỗi khóa mới và dán vào ô Gemini API Key."
                     }
-                # Nếu tài khoản bị cạn kiệt hạn mức quota
-                if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
-                    return {
-                        "status": "error",
-                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
-                    }
-                continue
-    except Exception as e:
-        last_err = str(e)
-
-    # Thử qua legacy google.generativeai nếu có
-    try:
-        import google.generativeai as gai
-        gai.configure(api_key=api_key)
-        for m_name in ["gemini-2.0-flash", "gemini-1.5-flash"]:
-            try:
-                g_model = gai.GenerativeModel(model_name=m_name)
-                response = await asyncio.to_thread(
-                    g_model.generate_content,
-                    test_prompt,
-                    generation_config={"temperature": 0.0}
-                )
-                if response and response.text:
-                    return {
-                        "status": "ok",
-                        "message": f"Kết nối GEMINI ({m_name}) thành công!",
-                        "response": response.text.strip()
-                    }
-            except Exception as e:
-                err_str = str(e)
-                last_err = err_str
                 if "API_KEY_INVALID" in err_str or "API key not valid" in err_str:
                     return {
                         "status": "error",
@@ -274,8 +329,9 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
                 if "RESOURCE_EXHAUSTED" in err_str or "429" in err_str:
                     return {
                         "status": "error",
-                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
+                        "message": "Lỗi kết nối LLM (gemini): Khóa Google Gemini này đã hết hạn mức sử dụng (Quota limit 429). Vui lòng thử lại sau vài phút hoặc tạo API Key mới trên tài khoản Google khác."
                     }
+                last_err = err_str
                 continue
     except Exception as e:
         last_err = str(e)
