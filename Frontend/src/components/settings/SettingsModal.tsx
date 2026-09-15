@@ -229,9 +229,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Badge variant="success">Hệ thống kích hoạt sẵn</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* @trace: REQ-038 */}
               {[
-                { id: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash', tag: 'Mặc định - Thông minh & Mới' },
-                { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tag: 'Bản ổn định - Cực nhanh' },
+                { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', tag: 'Mặc định - Mới nhất & Thông minh' },
+                { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash', tag: 'Bản ổn định - Cực nhanh' },
                 { id: 'gpt-4o-mini', label: 'GPT-4o Mini', tag: 'OpenAI Fallback' },
               ].map((m) => (
 
@@ -301,7 +302,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="text"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
-                placeholder="Ví dụ: gemini-2.5-flash, gpt-4o, llama-3.3-70b-versatile"
+                placeholder="Ví dụ: gemini-2.0-flash, gemini-1.5-flash, gpt-4o, llama-3.3-70b-versatile"
                 className="w-full bg-gray-800/80 text-gray-100 px-3.5 py-2 rounded-xl border border-gray-700 focus:border-indigo-500 focus:outline-none font-mono"
               />
             </div>
@@ -314,9 +315,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <label className="font-semibold text-gray-300 flex items-center gap-1.5">
                       <Key className="w-3.5 h-3.5 text-indigo-400" /> {t.geminiKeyLabel}
                     </label>
-                    {config?.has_gemini_key && (
-                      <Badge variant="success">{t.keyConfiguredEnv}</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-indigo-400 hover:text-indigo-300 underline"
+                      >
+                        Lấy API Key miễn phí ↗
+                      </a>
+                      {config?.has_gemini_key && (
+                        <Badge variant="success">{t.keyConfiguredEnv}</Badge>
+                      )}
+                    </div>
                   </div>
                   <input
                     type="password"

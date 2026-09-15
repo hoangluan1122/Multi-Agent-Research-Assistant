@@ -14,7 +14,7 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         env:
           DB_URL: ${{ secrets.DATABASE_URL }}
-          LLM_MODEL: ${{ secrets.DEFAULT_LLM_MODEL || 'gemini-2.5-flash' }}
+          LLM_MODEL: ${{ secrets.DEFAULT_LLM_MODEL || 'gemini-2.0-flash' }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -49,9 +49,12 @@ jobs:
               fi
             fi
 
-            # Tôn trọng cấu hình model mặc định hoặc lựa chọn người dùng (gemini-2.5-flash)
+            # Tôn trọng cấu hình model mặc định hoặc lựa chọn người dùng (gemini-2.0-flash)
             if ! grep -q "^DEFAULT_LLM_MODEL=" Backend/.env; then
               echo "DEFAULT_LLM_MODEL=$LLM_MODEL" >> Backend/.env
+            else
+              sed -i "s|^DEFAULT_LLM_MODEL=gemini-3.7-flash|DEFAULT_LLM_MODEL=$LLM_MODEL|" Backend/.env
+              sed -i "s|^DEFAULT_LLM_MODEL=gemini-2.5-flash|DEFAULT_LLM_MODEL=$LLM_MODEL|" Backend/.env
             fi
 
             echo "Building frontend..."

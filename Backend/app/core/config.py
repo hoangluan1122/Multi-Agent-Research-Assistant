@@ -91,7 +91,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
-    DEFAULT_LLM_MODEL: str = "gemini-2.5-flash"
+    # @trace: REQ-027, REQ-038
+    DEFAULT_LLM_MODEL: str = "gemini-2.0-flash"
     TEMPERATURE: float = 0.2
 
     # Cấu hình tìm kiếm học thuật bên ngoài (OpenAlex, arXiv, Semantic Scholar)

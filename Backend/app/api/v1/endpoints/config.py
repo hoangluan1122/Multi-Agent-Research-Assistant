@@ -115,16 +115,17 @@ async def update_system_config(payload: SystemConfigUpdate):
         use_system_key=not _is_using_custom_key
     )
 
+# @trace: REQ-041
 @router.post("/test-llm")
 async def test_llm_connection():
     """
     Kiểm tra kết nối trực tiếp với LLM Provider đang cấu hình:
-    - Gửi câu hỏi thử nghiệm ngắn gọn tới mô hình.
+    - Gửi câu hỏi thử nghiệm ngắn gọn tới mô hình thật (allow_mock=False).
     - Trả về thông báo thành công cùng phản hồi thực tế từ AI hoặc thông báo lỗi rõ ràng.
     """
     try:
         test_prompt = "Say 'PaperFlow LLM connection is healthy and working!' in exactly 1 sentence."
-        response_text = await llm_service.generate_text(test_prompt, temperature=0.0)
+        response_text = await llm_service.generate_text(test_prompt, temperature=0.0, allow_mock=False)
         return {
             "status": "ok",
             "message": f"Kết nối {settings.LLM_PROVIDER.upper()} ({settings.DEFAULT_LLM_MODEL}) thành công!",

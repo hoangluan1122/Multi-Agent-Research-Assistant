@@ -77,16 +77,23 @@ class LLMService:
         """
         target_model = model or self.default_model
 
+        # @trace: REQ-038, REQ-039, REQ-040
+        last_error = None
+
         # 1. Thử gọi Google GenAI SDK (google-genai v2.x)
         api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
         if api_key and not api_key.startswith("your_") and len(api_key) > 15:
-            candidate_models = [target_model, "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.5-flash"]
-            models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
-            if not allow_mock:
-                # Interactive translation must use the configured model, not spend
-                # the browser timeout probing older models and legacy SDKs.
-                models_to_try = [target_model]
+            # Danh sách model chuẩn chính thức của Google Gemini API
+            official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
             
+            # Chuẩn hóa target_model nếu tên model không tồn tại trên Google
+            clean_target = target_model
+            if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
+                clean_target = "gemini-2.0-flash"
+
+            candidate_models = [clean_target] + official_gemini_models
+            models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+
             if self.genai_client:
                 for m_name in models_to_try:
                     try:
@@ -106,12 +113,13 @@ class LLMService:
                         if response and response.text:
                             return response.text
                     except Exception as e:
+                        last_error = str(e)
                         logger.warning(f"Google GenAI model {m_name} failed: {e}")
                         continue
 
-            # Thử qua legacy google.generativeai nếu có
-            if allow_mock and hasattr(self, 'legacy_genai') and self.legacy_genai:
-                for m_name in ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]:
+            # Thử qua legacy google.generativeai nếu có (đây là API call thật, an toàn khi allow_mock=False)
+            if hasattr(self, 'legacy_genai') and self.legacy_genai:
+                for m_name in ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]:
                     try:
                         g_model = self.legacy_genai.GenerativeModel(
                             model_name=m_name,
@@ -125,8 +133,11 @@ class LLMService:
                         if response and response.text:
                             return response.text
                     except Exception as e:
+                        last_error = str(e)
                         logger.warning(f"Legacy Gemini model {m_name} failed: {e}")
                         continue
+        else:
+            last_error = "Khóa GEMINI_API_KEY chưa được thiết lập trên hệ thống"
 
         # 2. Thử gọi OpenAI hoặc API tương thích OpenAI
         if self.openai_client and settings.OPENAI_API_KEY:
@@ -146,10 +157,12 @@ class LLMService:
                 )
                 return response.choices[0].message.content or ""
             except Exception as e:
+                last_error = str(e)
                 logger.error(f"OpenAI generation error: {e}")
 
         if not allow_mock:
-            raise RuntimeError("Dịch vụ AI không khả dụng. Vui lòng kiểm tra API key, hạn mức hoặc thử lại sau.")
+            diag = f" ({last_error})" if last_error else ""
+            raise RuntimeError(f"Dịch vụ AI không khả dụng{diag}. Vui lòng kiểm tra API key, hạn mức trong Cài Đặt ⚙️ hoặc thử lại sau.")
 
         # 3. Sử dụng bộ phản hồi mô phỏng học thuật (Heuristic fallback)
         logger.info("Using intelligent academic fallback synthesis engine.")
@@ -160,6 +173,7 @@ class LLMService:
         prompt: str,
         system_instruction: Optional[str] = None,
         temperature: float = 0.1,
+        model: Optional[str] = None,
         allow_mock: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -169,7 +183,13 @@ class LLMService:
         - Parse kết quả sang Python Dictionary.
         """
         sys_prompt = (system_instruction or "") + "\n\nCRITICAL: Respond ONLY with valid JSON. No markdown formatting, no backticks, no extra text."
-        raw_text = await self.generate_text(prompt, system_instruction=sys_prompt, temperature=temperature, allow_mock=allow_mock)
+        raw_text = await self.generate_text(
+            prompt,
+            system_instruction=sys_prompt,
+            temperature=temperature,
+            model=model,
+            allow_mock=allow_mock,
+        )
         
         # Loại bỏ các thẻ code block nếu LLM bao bọc chuỗi JSON
         cleaned = raw_text.strip()

@@ -36,3 +36,32 @@ def test_offline_translation_does_not_use_mock(monkeypatch):
     monkeypatch.setattr(llm_service, 'openai_client', None)
     with pytest.raises(RuntimeError):
         asyncio.run(llm_service.generate_json('Translate into Vietnamese', allow_mock=False))
+
+
+# @trace: REQ-038, REQ-039
+def test_generate_text_smart_fallback_normalizes_invalid_model(monkeypatch):
+    """Kiểm tra tên model không tồn tại như gemini-3.7-flash được chuẩn hóa và tự động thử các model chuẩn."""
+    from app.core.config import settings
+    monkeypatch.setattr(settings, 'GEMINI_API_KEY', 'AIzaSyFakeKeyValidFormat123456789')
+    
+    called_models = []
+    class FakeGenaiModels:
+        async def generate_content(self, model, contents, config):
+            called_models.append(model)
+            if model == "gemini-2.0-flash":
+                class Resp:
+                    text = '{"title_vi": "Cờ bạc", "abstract_vi": "Nghiên cứu"}'
+                return Resp()
+            raise ValueError(f"Model {model} not found")
+            
+    class FakeAio:
+        models = FakeGenaiModels()
+
+    class FakeClient:
+        aio = FakeAio()
+
+    monkeypatch.setattr(llm_service, 'genai_client', FakeClient())
+    result = asyncio.run(llm_service.generate_json("prompt", model="gemini-3.7-flash", allow_mock=False))
+    assert result.get("title_vi") == "Cờ bạc"
+    assert "gemini-2.0-flash" in called_models
+
