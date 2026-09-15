@@ -243,15 +243,16 @@ class ResearchWorkflowEngine:
             except Exception as e:
                 logger.error(f"Workflow error for session {session_id}: {e}", exc_info=True)
                 try:
-                    stmt = select(ResearchSession).where(ResearchSession.id == session_id)
-                    res = await db.execute(stmt)
-                    s = res.scalar_one_or_none()
-                    if s:
-                        s.status = "FAILED"
-                        s.error_message = str(e)
-                        await db.commit()
-                except Exception:
-                    pass
+                    async with AsyncSessionLocal() as err_db:
+                        stmt = select(ResearchSession).where(ResearchSession.id == session_id)
+                        res = await err_db.execute(stmt)
+                        s = res.scalar_one_or_none()
+                        if s:
+                            s.status = "FAILED"
+                            s.error_message = str(e)
+                            await err_db.commit()
+                except Exception as inner_e:
+                    logger.error(f"Failed to record FAILED status: {inner_e}")
 
                 await self._notify(
                     session_id,

@@ -8,12 +8,14 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from app.core.config import settings
 from app.db.base import Base
 
-# Khởi tạo Async Engine kết nối cơ sở dữ liệu (hỗ trợ cả PostgreSQL asyncpg và SQLite aiosqlite)
+is_sqlite = "sqlite" in settings.DATABASE_URL
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {}
+    pool_pre_ping=True,
+    pool_recycle=60 if not is_sqlite else -1,
+    connect_args={"check_same_thread": False} if is_sqlite else {}
 )
 
 # Factory tạo phiên làm việc cơ sở dữ liệu bất đồng bộ (AsyncSession)
