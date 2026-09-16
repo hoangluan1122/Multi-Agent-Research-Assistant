@@ -4,13 +4,30 @@ Sử dụng SQLAlchemy AsyncEngine và AsyncSession.
 """
 
 from typing import AsyncGenerator
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import settings
 from app.db.base import Base
 
+
+def normalize_database_url(database_url: str) -> URL:
+    """Convert PostgreSQL URL options to arguments supported by asyncpg."""
+    url = make_url(database_url)
+    if url.drivername != "postgresql+asyncpg":
+        return url
+
+    query = dict(url.query)
+    ssl_mode = query.pop("sslmode", None)
+    query.pop("channel_binding", None)
+    if ssl_mode and "ssl" not in query:
+        query["ssl"] = ssl_mode
+
+    return url.set(query=query)
+
+
 is_sqlite = "sqlite" in settings.DATABASE_URL
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    normalize_database_url(settings.DATABASE_URL),
     echo=False,
     future=True,
     pool_pre_ping=True,

@@ -198,11 +198,10 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
             "message": "Lỗi kết nối LLM (gemini): Khóa API bạn nhập có định dạng của OpenAI (bắt đầu bằng 'sk-'). Vui lòng chọn thẻ 'OpenAI' ở trên hoặc nhập khóa Google Gemini hợp lệ (lấy từ Google AI Studio)."
         }
 
-    clean_target = (target_model or "gemini-2.0-flash").strip()
-    if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
-        clean_target = "gemini-2.0-flash"
-    candidate_models = [clean_target, "gemini-2.0-flash", "gemini-1.5-flash"]
-    models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+    # Test exactly the selected model. A success on a different auto-discovered
+    # model does not prove that the workflow can use the configured one.
+    clean_target = target_model.strip() if target_model else ""
+    models_to_try = [clean_target] if clean_target else []
     last_err = None
 
     # @trace: REQ-043, REQ-044, REQ-045: Direct REST qua httpx hỗ trợ cả v1 và v1beta endpoints
@@ -298,6 +297,13 @@ async def test_llm_connection(payload: Optional[TestLlmRequest] = Body(default=N
 
             # @trace: REQ-044: Nếu tất cả models cụ thể báo 404, thử khám phá models khả dụng động
             if had_404:
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Configured Gemini model '{clean_target}' returned 404 NOT_FOUND. "
+                        "The workflow will not fall back to another model; use the model confirmed by the deployment configuration."
+                    )
+                }
                 for ver in api_versions:
                     try:
                         list_resp = await http_client.get(

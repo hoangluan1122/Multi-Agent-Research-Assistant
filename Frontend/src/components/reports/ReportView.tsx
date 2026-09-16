@@ -1,4 +1,4 @@
-/**
+ /**
  * Component Hiển thị Báo cáo Tổng quan Tài liệu (Literature Review Report View - UC009, UC010, UC012):
  * - Render nội dung báo cáo bằng Markdown sinh động qua ReactMarkdown và remark-gfm.
  * - Điều hướng giữa 3 chế độ xem: Toàn văn báo cáo (Content), Ma trận so sánh đối chiếu (Matrix), Thẻ điểm đánh giá (Peer Review).
@@ -30,6 +30,39 @@ interface ReportViewProps {
   onTriggerWorkflow: () => void;
   onRevise?: (feedback: string) => Promise<void>;
 }
+
+const matrixCellText = (children: React.ReactNode): string =>
+  React.Children.toArray(children)
+    .map((child) => {
+      if (typeof child === 'string' || typeof child === 'number') return String(child);
+      if (React.isValidElement<{ children?: React.ReactNode }>(child)) return matrixCellText(child.props.children);
+      return '';
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const ExpandableMatrixCell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [expanded, setExpanded] = useState(false);
+  const text = matrixCellText(children);
+  const isLong = text.length > 180;
+
+  return (
+    <td className="max-w-[280px] break-words px-4 py-3 align-top leading-5 text-slate-600">
+      <div className={expanded || !isLong ? '' : 'line-clamp-4'}>{children}</div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="mt-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+          aria-expanded={expanded}
+        >
+          {expanded ? 'Thu gọn' : 'Xem thêm'}
+        </button>
+      )}
+    </td>
+  );
+};
 
 export const ReportView: React.FC<ReportViewProps> = ({
   report,
@@ -246,9 +279,7 @@ export const ReportView: React.FC<ReportViewProps> = ({
             </tr>
           ),
           td: ({ children }) => (
-            <td className="max-w-[250px] break-words px-4 py-3 leading-5 text-slate-600">
-              {children}
-            </td>
+            <ExpandableMatrixCell>{children}</ExpandableMatrixCell>
           ),
         }}
       >

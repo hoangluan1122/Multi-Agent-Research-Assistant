@@ -145,6 +145,23 @@ class ResearchWorkflowEngine:
                 comp_table = summary_res.get("comparison_table", "")
                 synthesized_summary = summary_res.get("synthesized_summary", "")
 
+                # Citations must exist before WritingAgent builds the report.  Creating
+                # them at the end meant that the first draft and its review could not
+                # refer to the same verified citation keys.
+                await self._notify(
+                    session_id,
+                    "RUNNING",
+                    "FORMATTING_CITATIONS",
+                    70,
+                    f"CitationAgent đang tạo danh mục trích dẫn {citation_style}...",
+                    "CitationAgent"
+                )
+                await citation_agent.run(
+                    db=db,
+                    session_id=session_id,
+                    style=citation_style
+                )
+
                 # =========================================================================
                 # BƯỚC 4 & 5: Vòng lặp Soạn thảo & Thẩm định phản biện (Writing & Review Loop - UC009, UC010, UC011)
                 # =========================================================================
@@ -214,16 +231,6 @@ class ResearchWorkflowEngine:
                             f"ReviewAgent yêu cầu sửa: {feedback[:100]}... (Thực hiện lần sửa {retry_count}/{max_retries})",
                             "ReviewAgent"
                         )
-
-                # =========================================================================
-                # BƯỚC 6: Citation Agent (Quản lý và định dạng trích dẫn chuẩn - UC008)
-                # =========================================================================
-                await self._notify(session_id, "RUNNING", "FORMATTING_CITATIONS", 95, f"CitationAgent đang kiểm chứng và định dạng danh mục trích dẫn {citation_style}...", "CitationAgent")
-                await citation_agent.run(
-                    db=db,
-                    session_id=session_id,
-                    style=citation_style
-                )
 
                 # Cập nhật trạng thái hoàn thành phiên
                 session.status = "COMPLETED"
