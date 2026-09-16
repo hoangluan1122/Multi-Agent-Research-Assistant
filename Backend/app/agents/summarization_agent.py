@@ -16,6 +16,7 @@ from ..services.llm_service import llm_service
 logger = logging.getLogger("paperflow.summarization_agent")
 
 class SummarizationAgent(BaseAgent):
+    MISSING_DATA = "Chưa trích xuất được dữ liệu."
     """
     SummarizationAgent: Tác tử tổng hợp và so sánh:
     - Thu thập toàn bộ kết quả phân tích (PaperAnalysis) của phiên nghiên cứu.
@@ -87,7 +88,19 @@ Paper Analyses:
 
 Provide a coherent comparative synthesis (2-3 paragraphs in Vietnamese or English based on research domain).
 """
-            synthesized_text = await llm_service.generate_text(prompt, temperature=0.2)
+            # A generic offline fallback can describe an unrelated domain and make
+            # the final report look fabricated.  Keep this synthesis grounded in
+            # the papers from the current session when the configured model is
+            # unavailable.
+            try:
+                synthesized_text = await llm_service.generate_text(
+                    prompt,
+                    temperature=0.2,
+                    allow_mock=False,
+                )
+            except Exception as exc:
+                logger.warning("Comparative LLM synthesis unavailable; using source-only summary: %s", exc)
+                synthesized_text = self._build_source_only_summary(list(papers))
 
             output = {
                 "comparison_table": comparison_table_md,
@@ -113,22 +126,52 @@ Provide a coherent comparative synthesis (2-3 paragraphs in Vietnamese or Englis
 
         for idx, p in enumerate(papers, 1):
             ana = p.analysis
-            method = ana.method.replace("\n", " ") if ana and ana.method else "Deep Learning Baseline"
-            dataset = ana.dataset.replace("\n", " ") if ana and ana.dataset else "Public Benchmarks"
-            results = ana.results.replace("\n", " ") if ana and ana.results else "High Performance"
-            limits = ana.limitations.replace("\n", " ") if ana and ana.limitations else "Compute Heavy"
+            method = self._table_value(ana.method if ana else None)
+            dataset = self._table_value(ana.dataset if ana else None)
+            results = self._table_value(ana.results if ana else None)
+            limits = self._table_value(ana.limitations if ana else None)
             
             row = [
                 str(idx),
-                f"**{p.title[:60]}...** ({p.year or 'N/A'})",
-                method[:70] + ("..." if len(method) > 70 else ""),
-                dataset[:50] + ("..." if len(dataset) > 50 else ""),
-                results[:70] + ("..." if len(results) > 70 else ""),
-                limits[:50] + ("..." if len(limits) > 50 else ""),
+                f"**{self._table_value(p.title)}** ({p.year or 'N/A'})",
+                method,
+                dataset,
+                results,
+                limits,
             ]
             lines.append("| " + " | ".join(row) + " |")
 
         return "\n".join(lines)
+
+    @classmethod
+    def _build_source_only_summary(cls, papers: List[Paper]) -> str:
+        """Create a transparent summary from stored metadata, never a mock claim."""
+        available = [p for p in papers if p.analysis and any(
+            cls._table_value(getattr(p.analysis, field)) != cls.MISSING_DATA
+            for field in ("method", "dataset", "results", "limitations")
+        )]
+        if not available:
+            return (
+                "Chưa thể tổng hợp so sánh chuyên sâu vì mô hình AI chưa trích xuất "
+                "được Method, Dataset, Results và Limitations từ các tài liệu nguồn. "
+                "Danh sách bài và metadata vẫn được giữ nguyên để chạy lại sau khi cấu hình LLM hợp lệ."
+            )
+
+        lines = [
+            f"Tổng hợp được xây dựng từ dữ liệu đã trích xuất của {len(available)}/{len(papers)} bài báo."
+        ]
+        for paper in available:
+            summary = (paper.analysis.summary or paper.abstract or "").strip()
+            if summary:
+                lines.append(f"- **{paper.title}**: {summary[:500]}")
+        return "\n".join(lines)
+
+    @classmethod
+    def _table_value(cls, value: Optional[str]) -> str:
+        """Display missing extraction transparently instead of a generic research claim."""
+        if not value or not value.strip():
+            return cls.MISSING_DATA
+        return value.replace("\n", " ").replace("|", "\\|").strip()
 
 # Khởi tạo singleton instance cho SummarizationAgent
 summarization_agent = SummarizationAgent()

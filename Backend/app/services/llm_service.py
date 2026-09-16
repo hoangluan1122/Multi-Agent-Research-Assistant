@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any, List
 from app.core.config import settings
 from app.services.query_normalizer import fallback_academic_keywords
 
+
 logger = logging.getLogger("paperflow.llm")
 
 class LLMService:
@@ -43,16 +44,12 @@ class LLMService:
         # Khởi tạo OpenAI Client
         if settings.OPENAI_API_KEY:
             try:
-                import httpx
                 from openai import AsyncOpenAI
-                custom_http = httpx.AsyncClient(
-                    timeout=httpx.Timeout(30.0, connect=10.0),
-                    follow_redirects=True
-                )
                 self.openai_client = AsyncOpenAI(
                     api_key=settings.OPENAI_API_KEY,
                     base_url=settings.OPENAI_BASE_URL,
-                    http_client=custom_http
+                    timeout=30.0,
+                    max_retries=2,
                 )
                 logger.info("OpenAI client initialized successfully.")
             except Exception as e:
@@ -108,13 +105,10 @@ class LLMService:
             nonlocal last_error
             api_key = settings.GEMINI_API_KEY.strip() if settings.GEMINI_API_KEY else ""
             if api_key and not api_key.startswith("your_") and len(api_key) > 15:
-                official_gemini_models = ["gemini-2.0-flash", "gemini-1.5-flash"]
-                clean_target = target_model
-                if clean_target and (clean_target.startswith("gemini-3.") or clean_target.startswith("gemini-2.5")):
-                    clean_target = "gemini-2.0-flash"
-
-                candidate_models = [clean_target] + official_gemini_models
-                models_to_try = list(dict.fromkeys([m for m in candidate_models if m]))
+                # Always use the model configured for this environment. Rewriting
+                # it to a legacy fallback makes local and deployed behavior differ.
+                clean_target = target_model.strip() if target_model else ""
+                models_to_try = [clean_target] if clean_target else []
 
                 # 1. Thử gọi Google GenAI SDK (v2.22+)
                 if self.genai_client:

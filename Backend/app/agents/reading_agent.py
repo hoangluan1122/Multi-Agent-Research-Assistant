@@ -24,6 +24,8 @@ logger = logging.getLogger("paperflow.reading_agent")
 
 
 class ReadingAgent(BaseAgent):
+    MISSING_DATA = "Chưa trích xuất được dữ liệu."
+    ANALYSIS_FIELDS = ("method", "dataset", "metrics", "results", "limitations", "summary")
     """
     ReadingAgent: Tác tử đọc sâu tài liệu khoa học:
     - Đọc file PDF tải lên hoặc Abstract của bài báo.
@@ -266,33 +268,69 @@ Respond in exact JSON format:
   "summary": "..."
 }}
 """
-        extracted = await llm_service.generate_json(prompt)
+        # PaperAnalysis feeds the comparison matrix and final report.  Never permit
+        # the LLM service's offline mock here: it fabricates the same method,
+        # dataset and metrics for every unrelated paper.
+        try:
+            extracted = await llm_service.generate_json(prompt, allow_mock=False)
+            extracted = self._normalize_extraction(extracted)
+        except Exception as exc:
+            logger.warning(
+                "Unable to extract structured evidence for paper %s; saving missing-data markers: %s",
+                paper.id,
+                exc,
+            )
+            extracted = self._missing_extraction(paper.abstract)
 
         # 4. Lưu / Cập nhật bảng PaperAnalysis
         if paper.analysis:
             analysis = paper.analysis
-            analysis.method = extracted.get("method", "Not explicitly specified")
-            analysis.dataset = extracted.get("dataset", "Standard Academic Benchmarks")
-            analysis.metrics = extracted.get("metrics", "Accuracy / F1-Score")
-            analysis.results = extracted.get("results", "Demonstrated substantial empirical improvements")
-            analysis.limitations = extracted.get("limitations", "Computational overhead")
-            analysis.summary = extracted.get("summary", paper.abstract or "")
+            analysis.method = extracted["method"]
+            analysis.dataset = extracted["dataset"]
+            analysis.metrics = extracted["metrics"]
+            analysis.results = extracted["results"]
+            analysis.limitations = extracted["limitations"]
+            analysis.summary = extracted["summary"]
             analysis.raw_analysis = extracted
         else:
             analysis = PaperAnalysis(
                 paper_id=paper.id,
-                method=extracted.get("method", "Not explicitly specified"),
-                dataset=extracted.get("dataset", "Standard Academic Benchmarks"),
-                metrics=extracted.get("metrics", "Accuracy / F1-Score"),
-                results=extracted.get("results", "Demonstrated substantial empirical improvements"),
-                limitations=extracted.get("limitations", "Computational overhead"),
-                summary=extracted.get("summary", paper.abstract or ""),
+                method=extracted["method"],
+                dataset=extracted["dataset"],
+                metrics=extracted["metrics"],
+                results=extracted["results"],
+                limitations=extracted["limitations"],
+                summary=extracted["summary"],
                 raw_analysis=extracted
             )
             db.add(analysis)
 
         paper.ingestion_status = "PROCESSED"
         return extracted
+
+    @classmethod
+    def _missing_extraction(cls, abstract: Optional[str] = None) -> Dict[str, str]:
+        """Return transparent placeholders, never plausible but unsupported facts."""
+        return {
+            "method": cls.MISSING_DATA,
+            "dataset": cls.MISSING_DATA,
+            "metrics": cls.MISSING_DATA,
+            "results": cls.MISSING_DATA,
+            "limitations": cls.MISSING_DATA,
+            "summary": abstract.strip() if abstract and abstract.strip() else cls.MISSING_DATA,
+        }
+
+    @classmethod
+    def _normalize_extraction(cls, extracted: Any) -> Dict[str, str]:
+        """Accept only non-empty model fields; label omitted fields transparently."""
+        if not isinstance(extracted, dict):
+            return cls._missing_extraction()
+        normalized = cls._missing_extraction()
+        for field in cls.ANALYSIS_FIELDS:
+            value = extracted.get(field)
+            if isinstance(value, str) and value.strip():
+                normalized[field] = value.strip()
+        return normalized
 
 # Khởi tạo singleton instance cho ReadingAgent
 reading_agent = ReadingAgent()

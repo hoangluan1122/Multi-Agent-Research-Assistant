@@ -14,9 +14,12 @@ class ReviewResponse(BaseModel):
     session_id: str
     score: float
     status: str
-    issues: List[Dict[str, Any]] = []
+    # ReviewAgent may return a concise string or a structured object for a
+    # finding.  A historical string must not make the whole report list fail
+    # response validation and hide otherwise valid reports from the UI.
+    issues: List[Any] = []
     feedback: Optional[str] = None
-    hallucination_risks: List[Dict[str, Any]] = []
+    hallucination_risks: List[Any] = []
     citation_coverage: float
     created_at: datetime
 

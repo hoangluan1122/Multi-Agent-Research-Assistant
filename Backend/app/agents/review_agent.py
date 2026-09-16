@@ -7,6 +7,7 @@ Chịu trách nhiệm đánh giá chất lượng bản thảo Literature Review
 """
 
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -37,6 +38,48 @@ class ReviewAgent(BaseAgent):
             3. Phát hiện rủi ro hallucination hoặc các khẳng định thiếu căn cứ thực nghiệm.
             Đưa ra điểm số (0-100), trạng thái PASS/FAIL và phản hồi chi tiết để tác giả chỉnh sửa.""",
             tools=[retrieve_document_chunks]
+        )
+
+    @staticmethod
+    def _build_review_material(
+        report_content: str,
+        citation_keys: List[str],
+        paper_count: int,
+    ) -> str:
+        """Prepare review input without dropping the evidence at the report tail.
+
+        A report for ten papers can be much longer than a short chat prompt.  The
+        previous implementation sent only the first 7,000 characters, which hid
+        the matrix and references and led to false FAIL results.  Most reports fit
+        below this limit; for exceptionally large reports we preserve the opening,
+        every heading, and evenly distributed text across the whole document.
+        """
+        content = (report_content or "").strip()
+        max_chars = 60_000
+        if len(content) <= max_chars:
+            report_for_review = content
+        else:
+            # Keep all structural headings and sample the entire document rather
+            # than truncating only its beginning.
+            headings = [line for line in content.splitlines() if line.lstrip().startswith("#")]
+            window_count = 6
+            window_size = 8_000
+            last_start = len(content) - window_size
+            starts = [round(last_start * index / (window_count - 1)) for index in range(window_count)]
+            windows = [content[index:index + window_size] for index in starts]
+            report_for_review = (
+                "[Report exceeds review window; representative sections from the full report follow.]\n"
+                + "\n".join(headings)
+                + "\n\n"
+                + "\n\n--- CONTINUED REPORT SECTION ---\n\n".join(windows)
+            )
+
+        referenced_keys = sorted(set(re.findall(r"\[\d+\]", content)))
+        return (
+            f"Selected paper count: {paper_count}\n"
+            f"Expected citation keys: {', '.join(citation_keys) or 'None'}\n"
+            f"Citation keys found in full report: {', '.join(referenced_keys) or 'None'}\n\n"
+            f"Full report material for review:\n{report_for_review}"
         )
 
     async def run(
@@ -82,11 +125,15 @@ class ReviewAgent(BaseAgent):
             coverage = len(used_keys) / len(citation_keys) if citation_keys else 1.0
 
             # 3. Sử dụng LLM thẩm định ngang hàng (Peer Review) và kiểm tra ảo giác
+            review_material = self._build_review_material(
+                report.content,
+                citation_keys,
+                paper_count=len(citation_keys),
+            )
             prompt = f"""You are a rigorous senior academic peer reviewer. Evaluate the following Literature Review draft.
 
 Report Title: {report.title}
-Report Content:
-{report.content[:7000]}
+{review_material}
 
 Known Valid Citations: {", ".join(citation_keys)}
 
@@ -107,7 +154,25 @@ Output exact JSON format:
 }}
 Note: status must be "PASS" (score >= 75) or "FAIL" (score < 75).
 """
-            review_data = await llm_service.generate_json(prompt)
+            # A mock review may return PASS for an unrelated or incomplete report.
+            # Publishing is allowed only after a live model has reviewed the
+            # evidence, so a model outage is an explicit FAIL rather than a
+            # misleading successful review.
+            try:
+                review_data = await llm_service.generate_json(prompt, allow_mock=False)
+            except Exception as exc:
+                logger.warning("Live review unavailable for report %s: %s", report.id, exc)
+                review_data = {
+                    "score": 0.0,
+                    "status": "FAIL",
+                    "issues": [{
+                        "type": "review_model_unavailable",
+                        "description": "Không thể thẩm định báo cáo bằng mô hình AI đang cấu hình.",
+                        "severity": "high",
+                    }],
+                    "feedback": "Không thể xác nhận chất lượng báo cáo vì mô hình AI chưa hoạt động. Hãy cấu hình model hợp lệ rồi chạy lại phiên nghiên cứu.",
+                    "hallucination_risks": [],
+                }
 
             score = float(review_data.get("score", 88.0))
             # Nếu độ bao phủ trích dẫn dưới 50%, tự động hạ điểm và đánh dấu FAIL
